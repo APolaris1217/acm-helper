@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>做题记录平台</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f0f2f5; color:#333; min-height:100vh; }
+.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:#fff; padding:20px 30px; text-align:center; }
+.header h1 { font-size:24px; margin-bottom:4px; }
+.header p { font-size:13px; opacity:.85; }
+.tabs { display:flex; gap:0; background:#fff; padding:0 20px; box-shadow:0 1px 3px rgba(0,0,0,.08); position:sticky; top:0; z-index:10; }
+.tab { padding:14px 28px; cursor:pointer; border-bottom:3px solid transparent; font-size:14px; font-weight:500; color:#666; transition:all .2s; }
+.tab:hover { color:#667eea; }
+.tab.active { color:#667eea; border-bottom-color:#667eea; }
+.container { max-width:1100px; margin:20px auto; padding:0 16px; }
+.section { display:none; }
+.section.active { display:block; }
+
+/* Form */
+.form-card { background:#fff; border-radius:10px; padding:20px 24px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.form-card h3 { font-size:16px; margin-bottom:14px; color:#444; }
+.form-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.form-group { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
+.form-group label { font-size:12px; color:#888; font-weight:500; }
+.form-group input, .form-group select { padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; outline:none; transition:border .2s; }
+.form-group input:focus, .form-group select:focus { border-color:#667eea; }
+.form-group.full { flex:100%; min-width:100%; }
+
+.tag-select { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag-chip { padding:4px 10px; border-radius:14px; font-size:12px; cursor:pointer; border:1px solid #ddd; background:#fff; white-space:nowrap; transition:all .2s; }
+.tag-chip.selected { background:#667eea; color:#fff; border-color:#667eea; }
+.tag-input { border:1px solid #ddd; border-radius:6px; padding:6px 10px; font-size:12px; outline:none; width:100px; }
+.tag-input:focus { border-color:#667eea; }
+
+.btn { padding:8px 18px; border-radius:6px; border:none; font-size:13px; cursor:pointer; font-weight:500; transition:all .2s; }
+.btn-primary { background:#667eea; color:#fff; }
+.btn-primary:hover { background:#5a6fd6; }
+.btn-danger { background:#e74c3c; color:#fff; }
+.btn-danger:hover { background:#c0392b; }
+.btn-outline { background:#fff; border:1px solid #ddd; color:#666; }
+.btn-outline:hover { border-color:#667eea; color:#667eea; }
+.btn-sm { padding:4px 10px; font-size:11px; }
+.btn-group { display:flex; gap:8px; margin-top:8px; }
+
+/* Sync card */
+.sync-card { background: linear-gradient(135deg, #f8f9ff 0%, #eef0ff 100%); border: 1px solid #d5d9f0; border-radius:10px; padding:18px 24px; margin-bottom:16px; }
+.sync-card h3 { font-size:15px; margin-bottom:4px; color:#444; }
+.sync-card .sync-subtitle { font-size:12px; color:#999; margin-bottom:12px; }
+.sync-inputs { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.sync-inputs .form-group { min-width:160px; }
+.sync-inputs .form-group label { display:flex; align-items:center; gap:4px; }
+.platform-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
+.platform-dot.cf { background:#f39c12; }
+.platform-dot.at { background:#4facfe; }
+.platform-dot.lg { background:#43e97b; }
+.sync-status { font-size:12px; margin-top:8px; min-height:18px; }
+.sync-status .ok { color:#27ae60; }
+.sync-status .err { color:#e74c3c; }
+.sync-status .pending { color:#f39c12; }
+.sync-note { font-size:11px; color:#aaa; margin-top:6px; }
+
+/* Table */
+.table-wrap { background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { background:#f8f9fb; padding:10px 12px; text-align:left; font-weight:600; color:#666; font-size:12px; border-bottom:1px solid #eee; white-space:nowrap; }
+td { padding:10px 12px; border-bottom:1px solid #f5f5f5; }
+tr:hover td { background:#fafbff; }
+.diff-span { display:inline-block; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; }
+.diff-easy { background:#d4edda; color:#155724; }
+.diff-med { background:#fff3cd; color:#856404; }
+.diff-hard { background:#f8d7da; color:#721c24; }
+.result-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.result-AC { background:#d4edda; color:#155724; }
+.result-WA { background:#f8d7da; color:#721c24; }
+.result-TLE, .result-MLE, .result-CE { background:#ffeaa7; color:#6c5b00; }
+.result-RE { background:#fab1a0; color:#6b1c00; }
+.result-partial { background:#dfe6e9; color:#444; }
+.result-unsolved { background:#dfe6e9; color:#888; }
+
+.filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+.filter-bar select, .filter-bar input { padding:7px 10px; border:1px solid #ddd; border-radius:6px; font-size:12px; outline:none; }
+.filter-bar select:focus, .filter-bar input:focus { border-color:#667eea; }
+
+.pagination { display:flex; gap:6px; justify-content:center; padding:12px; }
+.pagination button { padding:6px 12px; border:1px solid #ddd; border-radius:4px; background:#fff; cursor:pointer; font-size:12px; }
+.pagination button.active { background:#667eea; color:#fff; border-color:#667eea; }
+
+/* Stats */
+.stats-row { display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+.stat-card { background:#fff; border-radius:10px; padding:16px 20px; flex:1; min-width:150px; box-shadow:0 1px 3px rgba(0,0,0,.06); text-align:center; }
+.stat-card .num { font-size:28px; font-weight:700; color:#667eea; }
+.stat-card .label { font-size:12px; color:#888; margin-top:2px; }
+
+.chart-card { background:#fff; border-radius:10px; padding:18px 20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.chart-card h4 { font-size:14px; color:#444; margin-bottom:10px; }
+.chart-row { display:flex; gap:14px; flex-wrap:wrap; }
+.chart-row .chart-card { flex:1; min-width:300px; }
+
+.heatmap { display:flex; gap:3px; flex-wrap:wrap; }
+.heatmap-cell { width:13px; height:13px; border-radius:2px; }
+.heatmap-0 { background:#ebedf0; }
+.heatmap-1 { background:#c6e48b; }
+.heatmap-2 { background:#7bc96f; }
+.heatmap-3 { background:#239a3b; }
+.heatmap-4 { background:#196127; }
+
+.weak-card { background:#fff; border-radius:10px; padding:16px 20px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); display:flex; align-items:center; gap:14px; border-left:4px solid #e74c3c; }
+.weak-card .rank { font-size:24px; font-weight:700; color:#e74c3c; min-width:30px; }
+.weak-card .info { flex:1; }
+.weak-card .info .tag-name { font-size:15px; font-weight:600; }
+.weak-card .info .detail { font-size:12px; color:#888; margin-top:2px; }
+.weak-card .ac-rate { font-size:20px; font-weight:700; color:#e74c3c; }
+.weak-none { text-align:center; color:#888; padding:30px; font-size:14px; }
+
+.nodata { text-align:center; color:#aaa; padding:40px; }
+.hidden { display:none !important; }
+
+/* Analysis report */
+.report-section { margin-bottom:16px; }
+.report-section h5 { font-size:14px; color:#444; border-bottom:1px solid #eee; padding-bottom:6px; margin-bottom:8px; }
+.report-summary { font-size:13px; color:#555; background:#f8f9fb; padding:10px 14px; border-radius:6px; line-height:1.6; }
+.report-issue { font-size:12px; color:#666; padding:4px 0 4px 16px; border-left:3px solid #e74c3c; margin:6px 0; }
+.report-issue.good { border-left-color:#27ae60; color:#444; }
+.report-rank-table { width:100%; border-collapse:collapse; font-size:12px; }
+.report-rank-table th { background:#f8f9fb; padding:8px; text-align:left; font-size:11px; }
+.report-rank-table td { padding:7px 8px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+.report-rank-table .bar-wrap { background:#eee; border-radius:3px; height:6px; min-width:60px; }
+.report-rank-table .bar-fill { background:#e74c3c; height:6px; border-radius:3px; }
+.report-rank-table .suggestion { font-size:11px; color:#888; margin-top:3px; }
+.report-rank-table .suggestion li { margin:2px 0 2px 12px; }
+
+.toast { position:fixed; top:20px; right:20px; padding:10px 18px; border-radius:6px; color:#fff; font-size:13px; z-index:200; animation:fadeIn .3s; }
+.toast-success { background:#27ae60; }
+.toast-error { background:#e74c3c; }
+.toast-info { background:#3498db; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(-8px);} to{opacity:1;transform:translateY(0);} }
+
+@media (max-width:768px) {
+  .form-row { flex-direction:column; }
+  .stats-row { flex-direction:column; }
+  .chart-row { flex-direction:column; }
+  .tabs { justify-content:center; }
+  .tab { padding:12px 18px; font-size:12px; }
+  .sync-inputs { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>做题记录平台</h1>
+  <p>洛谷 · Codeforces · AtCoder &nbsp;|&nbsp; 自动同步 + 薄弱分析</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="records">记录管理</div>
+  <div class="tab" data-tab="overview">数据总览</div>
+  <div class="tab" data-tab="analysis">薄弱分析</div>
+</div>
+
+<div class="container">
+
+  <!-- ===== Tab 1: 记录管理 ===== -->
+  <div id="section-records" class="section active">
+
+    <!-- Sync panel -->
+    <div class="sync-card" id="sync-card">
+      <h3>账号同步</h3>
+      <p class="sync-subtitle">输入各平台账号，自动拉取所有提交记录（数据经过本地服务器代理，不会泄露）</p>
+      <div class="sync-inputs">
+        <div class="form-group">
+          <label><span class="platform-dot cf"></span> Codeforces Handle</label>
+          <input id="sync-cf" placeholder="例: tourist">
+        </div>
+        <div class="form-group">
+          <label><span class="platform-dot at"></span> AtCoder Username</label>
+          <input id="sync-at" placeholder="例: chokudai">
+        </div>
+        <div class="form-group">
+          <label><span class="platform-dot lg"></span> 洛谷 UID</label>
+          <input id="sync-lg" placeholder="例: 123456">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:6px;">
+        <div class="form-group" style="min-width:380px;">
+          <label>洛谷 Cookie（必须登录后才能拉取提交记录）</label>
+          <input id="sync-lg-cookie" placeholder="F12→Application→Cookies→luogu.com.cn 复制所有 cookie: __client_id=xxx; _uid=yyy; 其他cookie=值">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:8px;">
+        <button class="btn btn-primary" id="btn-sync" style="height:36px;">全部同步</button>
+        <button class="btn btn-outline btn-sm" id="btn-sync-cf">仅同步 CF</button>
+        <button class="btn btn-outline btn-sm" id="btn-sync-at">仅同步 AT</button>
+        <button class="btn btn-outline btn-sm" id="btn-sync-lg">仅同步 洛谷</button>
+      </div>
+      <div class="sync-status" id="sync-status"></div>
+      <p class="sync-note">提示：① 洛谷 UID 从个人主页 URL 获取（如 /user/<b>123456</b>）。② 洛谷必须提供 Cookie：登录洛谷后 F12 → Application → Cookies → luogu.com.cn → 复制所有 Cookie 的 name=value，以分号分隔。③ AtCoder 和洛谷需要 <code>pip install curl_cffi</code>。④ 数据缓存 30-60 分钟。⑤ 修改代码后需重启 server.py。</p>
+    </div>
+
+    <!-- Manual add form -->
+    <div class="form-card" id="form-card">
+      <h3 id="form-title">添加做题记录</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>平台</label>
+          <select id="f-platform"><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="other">其他</option></select>
+        </div>
+        <div class="form-group">
+          <label>题号</label>
+          <input id="f-problemId" placeholder="例: P1001 / 1234A">
+        </div>
+        <div class="form-group">
+          <label>题名</label>
+          <input id="f-name" placeholder="题目名称">
+        </div>
+        <div class="form-group">
+          <label>难度分</label>
+          <input id="f-difficulty" type="number" placeholder="例: 1200">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>结果</label>
+          <select id="f-result">
+            <option value="AC">AC (通过)</option><option value="WA">WA (答案错误)</option><option value="TLE">TLE (超时)</option><option value="RE">RE (运行错误)</option><option value="CE">CE (编译错误)</option><option value="MLE">MLE (超内存)</option><option value="partial">部分通过</option><option value="unsolved">未解决</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>日期</label>
+          <input id="f-date" type="date">
+        </div>
+        <div class="form-group">
+          <label>耗时 (分钟)</label>
+          <input id="f-time" type="number" placeholder="可选">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>标签（点击选择 + 自定义输入）</label>
+          <div class="tag-select" id="tag-select"></div>
+          <input class="tag-input" id="tag-input" placeholder="自定义标签回车添加" style="margin-top:6px;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>笔记</label>
+          <input id="f-notes" placeholder="可选备注">
+        </div>
+      </div>
+      <input type="hidden" id="f-editId">
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-save">保存</button>
+        <button class="btn btn-outline" id="btn-cancel-edit">取消</button>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <div class="filter-bar">
+        <select id="filter-platform"><option value="">全部平台</option><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="other">其他</option></select>
+        <select id="filter-result"><option value="">全部结果</option><option value="AC">AC</option><option value="WA">WA</option><option value="TLE">TLE</option><option value="RE">RE</option><option value="CE">CE</option><option value="MLE">MLE</option><option value="partial">部分通过</option><option value="unsolved">未解决</option></select>
+        <select id="filter-tag"><option value="">全部标签</option></select>
+        <input id="filter-search" placeholder="搜索题号/题名...">
+        <button class="btn btn-outline btn-sm" id="btn-export">导出 JSON</button>
+        <label class="btn btn-outline btn-sm" style="cursor:pointer;">导入 JSON<input type="file" id="file-import" accept=".json" style="display:none;"></label>
+        <button class="btn btn-danger btn-sm" id="btn-clear">清空数据</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>平台</th><th>题号</th><th>题名</th><th>难度</th><th>标签</th><th>结果</th><th>日期</th><th>语言</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="problem-tbody"></tbody>
+      </table>
+      <div id="pagination" class="pagination"></div>
+    </div>
+  </div>
+
+  <!-- ===== Tab 2: 数据总览 ===== -->
+  <div id="section-overview" class="section">
+    <div class="stats-row" id="stats-row"></div>
+
+    <div class="chart-row">
+      <div class="chart-card"><h4>做题热力图（近一年）</h4><div class="heatmap" id="heatmap"></div></div>
+      <div class="chart-card"><h4>平台分布</h4><canvas id="chart-platform" height="220"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>近30天做题趋势</h4><canvas id="chart-trend" height="200"></canvas></div>
+      <div class="chart-card"><h4>结果分布</h4><canvas id="chart-result" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ===== Tab 3: 薄弱分析 ===== -->
+  <div id="section-analysis" class="section">
+    <div class="chart-card"><h4>标签 AC 率排名（从低到高 → 越靠左越薄弱）</h4><canvas id="chart-tag-ac" height="250"></canvas></div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>难度-通过率（每200一档）</h4><canvas id="chart-diff-scatter" height="220"></canvas></div>
+      <div class="chart-card"><h4>平台 AC 率对比</h4><canvas id="chart-platform-radar" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h4>薄弱知识点 Top 5</h4>
+      <div id="weak-top5"></div>
+    </div>
+
+    <!-- Behavior analysis report -->
+    <div class="chart-card">
+      <h4>行为分析报告</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:10px;">基于提交行为模式（尝试次数、错误序列、时间间隔、能力连续性）自动生成，不依赖标签通过率</p>
+      <button class="btn btn-primary" id="btn-analyze">生成行为分析报告</button>
+      <span style="font-size:12px;color:#999;margin-left:8px;" id="analyze-status"></span>
+      <div id="analyze-report" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ==================== DATA ====================
+const STORAGE_KEY = 'problem_tracker_data';
+const SERVER = 'http://localhost:8765';
+const PLATFORM_NAMES = { luogu:'洛谷', codeforces:'Codeforces', atcoder:'AtCoder', other:'其他' };
+const RESULT_NAMES = { AC:'AC', WA:'WA', TLE:'TLE', RE:'RE', CE:'CE', MLE:'MLE', partial:'部分通过', unsolved:'未解决' };
+const PRESET_TAGS = ['dp','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','数论','几何','博弈','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路'];
+
+let problems = [];
+let currentTagSelection = [];
+let currentPage = 1;
+const PAGE_SIZE = 15;
+let charts = {};
+
+function load() {
+  try { problems = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e) { problems = []; }
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(problems)); }
+
+// ==================== TOAST ====================
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// ==================== SYNC ====================
+async function syncPlatform(platform) {
+  let param, url;
+  if (platform === 'codeforces') {
+    const handle = document.getElementById('sync-cf').value.trim();
+    if (!handle) return { error: '请输入 Codeforces handle' };
+    param = 'handle=' + encodeURIComponent(handle);
+  } else if (platform === 'atcoder') {
+    const username = document.getElementById('sync-at').value.trim();
+    if (!username) return { error: '请输入 AtCoder username' };
+    param = 'username=' + encodeURIComponent(username);
+  } else if (platform === 'luogu') {
+    const uid = document.getElementById('sync-lg').value.trim();
+    if (!uid) return { error: '请输入洛谷 UID' };
+    param = 'uid=' + encodeURIComponent(uid);
+    const cookie = document.getElementById('sync-lg-cookie').value.trim();
+    if (cookie) param += '&cookie=' + encodeURIComponent(cookie);
+  }
+  url = `${SERVER}/api/fetch/${platform}?${param}`;
+
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.message || 'Unknown error');
+  return data;
+}
+
+function mergeData(newRecords) {
+  if (!Array.isArray(newRecords)) return 0;
+  // Keep all submissions; dedup by platform+problemId+date+result (avoid exact dupes on re-sync)
+  const seen = new Set();
+  problems.forEach(p => { seen.add(p.platform + '::' + p.problemId + '::' + p.date + '::' + p.result); });
+  let added = 0;
+  newRecords.forEach(r => {
+    const key = r.platform + '::' + r.problemId + '::' + r.date + '::' + r.result;
+    if (!seen.has(key)) {
+      seen.add(key);
+      problems.push(r);
+      added++;
+    }
+  });
+  save();
+  return added;
+}
+
+async function doSync(platform) {
+  const status = document.getElementById('sync-status');
+  const name = platform === 'codeforces' ? 'Codeforces' : platform === 'atcoder' ? 'AtCoder' : '洛谷';
+  status.innerHTML = `<span class="pending">正在拉取 ${name} 数据...</span>`;
+  try {
+    const data = await syncPlatform(platform);
+    if (data.error) {
+      status.innerHTML = `<span class="err">${name}: ${data.error}</span>`;
+      return;
+    }
+    const added = mergeData(data);
+    status.innerHTML = `<span class="ok">${name}: 获取 ${data.length} 条记录，新增 ${added} 条</span>`;
+  } catch (e) {
+    status.innerHTML = `<span class="err">${name}: ${e.message}（请确认 server.py 已启动）</span>`;
+  }
+}
+
+async function doSyncAll() {
+  const status = document.getElementById('sync-status');
+  status.innerHTML = '<span class="pending">开始同步...</span>';
+  const platforms = ['codeforces', 'atcoder', 'luogu'];
+  for (const p of platforms) {
+    const input = document.getElementById('sync-' + (p === 'codeforces' ? 'cf' : p === 'atcoder' ? 'at' : 'lg'));
+    if (input.value.trim()) {
+      await doSync(p);
+    }
+  }
+  renderAll();
+  toast('同步完成');
+}
+
+document.getElementById('btn-sync').addEventListener('click', doSyncAll);
+document.getElementById('btn-sync-cf').addEventListener('click', async () => { await doSync('codeforces'); renderAll(); });
+document.getElementById('btn-sync-at').addEventListener('click', async () => { await doSync('atcoder'); renderAll(); });
+document.getElementById('btn-sync-lg').addEventListener('click', async () => { await doSync('luogu'); renderAll(); });
+
+// ==================== TAGS ====================
+function getAllTags() {
+  const s = new Set();
+  problems.forEach(p => p.tags.forEach(t => s.add(t)));
+  return [...s].sort();
+}
+
+function renderTagSelector() {
+  const all = new Set(PRESET_TAGS);
+  getAllTags().forEach(t => all.add(t));
+  const cont = document.getElementById('tag-select');
+  cont.innerHTML = '';
+  [...all].sort().forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip' + (currentTagSelection.includes(t) ? ' selected' : '');
+    chip.textContent = t;
+    chip.onclick = () => {
+      const idx = currentTagSelection.indexOf(t);
+      if (idx >= 0) currentTagSelection.splice(idx,1); else currentTagSelection.push(t);
+      renderTagSelector();
+    };
+    cont.appendChild(chip);
+  });
+}
+
+document.getElementById('tag-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const v = e.target.value.trim();
+    if (v && !currentTagSelection.includes(v)) { currentTagSelection.push(v); renderTagSelector(); }
+    e.target.value = '';
+  }
+});
+
+document.getElementById('btn-cancel-edit').addEventListener('click', resetForm);
+
+function resetForm() {
+  document.getElementById('f-editId').value = '';
+  document.getElementById('f-platform').value = 'luogu';
+  document.getElementById('f-problemId').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-difficulty').value = '';
+  document.getElementById('f-result').value = 'AC';
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f-time').value = '';
+  document.getElementById('f-notes').value = '';
+  currentTagSelection = [];
+  renderTagSelector();
+  document.getElementById('form-title').textContent = '添加做题记录';
+  document.getElementById('btn-cancel-edit').classList.add('hidden');
+}
+
+// ==================== CRUD ====================
+function uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+function collectForm() {
+  return {
+    id: document.getElementById('f-editId').value || uuid(),
+    platform: document.getElementById('f-platform').value,
+    problemId: document.getElementById('f-problemId').value.trim(),
+    name: document.getElementById('f-name').value.trim(),
+    difficulty: parseInt(document.getElementById('f-difficulty').value) || 0,
+    tags: [...currentTagSelection],
+    result: document.getElementById('f-result').value,
+    date: document.getElementById('f-date').value || new Date().toISOString().slice(0,10),
+    timeSpent: parseInt(document.getElementById('f-time').value) || 0,
+    language: '',
+    notes: document.getElementById('f-notes').value.trim()
+  };
+}
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  const p = collectForm();
+  if (!p.problemId) { toast('题号不能为空','error'); return; }
+  const editId = document.getElementById('f-editId').value;
+  if (editId) {
+    const idx = problems.findIndex(x => x.id === editId);
+    if (idx >= 0) { problems[idx] = p; toast('已更新'); }
+  } else {
+    problems.unshift(p);
+    toast('已添加');
+  }
+  save(); resetForm(); renderAll();
+});
+
+function editProblem(id) {
+  const p = problems.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('f-editId').value = p.id;
+  document.getElementById('f-platform').value = p.platform;
+  document.getElementById('f-problemId').value = p.problemId;
+  document.getElementById('f-name').value = p.name;
+  document.getElementById('f-difficulty').value = p.difficulty;
+  document.getElementById('f-result').value = p.result;
+  document.getElementById('f-date').value = p.date;
+  document.getElementById('f-time').value = p.timeSpent || '';
+  document.getElementById('f-notes').value = p.notes || '';
+  currentTagSelection = [...(p.tags || [])];
+  renderTagSelector();
+  document.getElementById('form-title').textContent = '编辑做题记录';
+  document.getElementById('btn-cancel-edit').classList.remove('hidden');
+  document.getElementById('section-records').scrollIntoView({ behavior:'smooth' });
+}
+
+function deleteProblem(id) {
+  if (!confirm('确定删除这条记录？')) return;
+  problems = problems.filter(x => x.id !== id);
+  save(); renderAll(); toast('已删除');
+}
+
+// ==================== RENDER RECORDS ====================
+function difficultyClass(v) {
+  if (!v) return '';
+  if (v <= 1200) return 'diff-easy';
+  if (v <= 2000) return 'diff-med';
+  return 'diff-hard';
+}
+
+function getFiltered() {
+  const fp = document.getElementById('filter-platform').value;
+  const fr = document.getElementById('filter-result').value;
+  const ft = document.getElementById('filter-tag').value;
+  const fs = document.getElementById('filter-search').value.toLowerCase();
+  return problems.filter(p => {
+    if (fp && p.platform !== fp) return false;
+    if (fr && p.result !== fr) return false;
+    if (ft && !(p.tags || []).includes(ft)) return false;
+    if (fs && !(p.problemId||'').toLowerCase().includes(fs) && !(p.name||'').toLowerCase().includes(fs)) return false;
+    return true;
+  });
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const total = filtered.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = filtered.slice(start, start + PAGE_SIZE);
+
+  const tbody = document.getElementById('problem-tbody');
+  if (page.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="nodata">暂无记录，使用上方"账号同步"拉取或手动添加</td></tr>';
+  } else {
+    tbody.innerHTML = page.map(p => {
+      const diffCls = difficultyClass(p.difficulty);
+      return `<tr>
+        <td>${PLATFORM_NAMES[p.platform] || p.platform}</td>
+        <td>${p.problemId || '-'}</td>
+        <td>${p.name || '-'}</td>
+        <td>${p.difficulty ? `<span class="diff-span ${diffCls}">${p.difficulty}</span>` : '-'}</td>
+        <td>${(p.tags || []).map(t => `<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">${t}</span>`).join(' ')}</td>
+        <td><span class="result-badge result-${p.result}">${RESULT_NAMES[p.result] || p.result}</span></td>
+        <td>${p.date}</td>
+        <td>${p.language || p.timeSpent ? (p.language || p.timeSpent+'分') : '-'}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="editProblem('${p.id}')">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProblem('${p.id}')">删除</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  const pag = document.getElementById('pagination');
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= totalPages; i++) {
+    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  pag.innerHTML = html;
+}
+
+function goPage(n) { currentPage = n; renderTable(); }
+
+['filter-platform','filter-result','filter-tag','filter-search'].forEach(id => {
+  document.getElementById(id).addEventListener(id === 'filter-search' ? 'input' : 'change', () => {
+    currentPage = 1;
+    renderTable();
+  });
+});
+
+function updateFilterTags() {
+  const sel = document.getElementById('filter-tag');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部标签</option>' + getAllTags().map(t => `<option value="${t}">${t}</option>`).join('');
+  sel.value = cur;
+}
+
+// Export / Import / Clear
+document.getElementById('btn-export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(problems, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'problem-records-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click(); toast('导出成功');
+});
+
+document.getElementById('file-import').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data)) throw new Error('格式错误');
+      const added = mergeData(data);
+      save(); renderAll(); toast(`导入 ${data.length} 条，新增 ${added} 条`);
+    } catch(err) { toast('导入失败：' + err.message, 'error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('确定清空所有数据？此操作不可撤销。建议先导出备份。')) return;
+  problems = [];
+  save(); renderAll(); toast('已清空');
+});
+
+// ==================== CHARTS ====================
+function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
+
+function renderOverview() {
+  const total = problems.length;
+  // Unique problem count (做题数)
+  const uniqueSet = new Set(problems.map(p => p.platform + '::' + p.problemId));
+  const uniqueCnt = uniqueSet.size;
+  if (total === 0) {
+    document.getElementById('stats-row').innerHTML = '<div class="stat-card"><div class="num">0</div><div class="label">暂无数据，请先同步账号</div></div>';
+    document.getElementById('heatmap').innerHTML = '<div class="nodata">暂无数据</div>';
+    return;
+  }
+
+  const acCnt = problems.filter(p => p.result === 'AC').length;
+  const acRate = total > 0 ? (acCnt / total * 100).toFixed(1) : '0';
+
+  const now = new Date();
+  const weekAgo = new Date(now - 7*86400000);
+  const weekCnt = problems.filter(p => new Date(p.date) >= weekAgo).length;
+
+  // Streak
+  const dateSet = new Set(problems.map(p => p.date));
+  let streak = 0;
+  const d = new Date(now);
+  while (dateSet.has(d.toISOString().slice(0,10))) { streak++; d.setDate(d.getDate()-1); }
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="num">${uniqueCnt}</div><div class="label">做题数（去重）</div></div>
+    <div class="stat-card"><div class="num">${total}</div><div class="label">总提交数</div></div>
+    <div class="stat-card"><div class="num">${acRate}%</div><div class="label">AC 率</div></div>
+    <div class="stat-card"><div class="num">${weekCnt}</div><div class="label">近7天提交</div></div>
+    <div class="stat-card"><div class="num">${streak}</div><div class="label">连续打卡天数</div></div>
+  `;
+
+  renderHeatmap(dateSet);
+  renderPlatformPie();
+  renderTrend();
+  renderResultDist();
+}
+
+function renderHeatmap(dateSet) {
+  const cont = document.getElementById('heatmap');
+  const cells = [];
+  const today = new Date();
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date(today - i * 86400000);
+    const key = d.toISOString().slice(0,10);
+    const cnt = problems.filter(p => p.date === key).length;
+    const level = cnt === 0 ? 0 : cnt === 1 ? 1 : cnt <= 3 ? 2 : cnt <= 6 ? 3 : 4;
+    cells.push(`<span class="heatmap-cell heatmap-${level}" title="${key}: ${cnt}题"></span>`);
+  }
+  cont.innerHTML = cells.join('');
+}
+
+function renderPlatformPie() {
+  destroyChart('platform');
+  const cnt = {};
+  problems.forEach(p => { cnt[p.platform] = (cnt[p.platform]||0)+1; });
+  const labels = Object.keys(cnt).map(k => PLATFORM_NAMES[k] || k);
+  const data = Object.values(cnt);
+  const ctx = document.getElementById('chart-platform').getContext('2d');
+  charts.platform = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels, datasets: [{ data, backgroundColor: ['#667eea','#f093fb','#4facfe','#43e97b','#fa709a'] }]
+    },
+    options: { plugins: { legend: { position:'bottom' } } }
+  });
+}
+
+function renderTrend() {
+  destroyChart('trend');
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i*86400000);
+    days.push(d.toISOString().slice(0,10));
+  }
+  const data = days.map(d => problems.filter(p => p.date === d).length);
+  const ctx = document.getElementById('chart-trend').getContext('2d');
+  charts.trend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d.slice(5)),
+      datasets: [{ data, backgroundColor: '#667eea', borderRadius: 3 }]
+    },
+    options: {
+      plugins: { legend: { display:false } },
+      scales: { y: { beginAtZero:true, ticks:{stepSize:1} } }
+    }
+  });
+}
+
+function renderResultDist() {
+  destroyChart('result');
+  const order = ['AC','WA','TLE','RE','CE','MLE','partial','unsolved'];
+  const data = order.map(r => problems.filter(p => p.result === r).length);
+  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#9b59b6','#3498db','#95a5a6','#bdc3c7'];
+  const ctx = document.getElementById('chart-result').getContext('2d');
+  charts.result = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: order.map(r => RESULT_NAMES[r]),
+      datasets: [{ data, backgroundColor: colors, borderRadius: 3 }]
+    },
+    options: {
+      plugins: { legend: { display:false } },
+      scales: { y: { beginAtZero:true, ticks:{stepSize:1} } }
+    }
+  });
+}
+
+// ==================== ANALYSIS ====================
+function renderAnalysis() {
+  if (problems.length === 0) {
+    document.getElementById('weak-top5').innerHTML = '<div class="nodata">暂无数据，请先同步账号或添加记录</div>';
+    return;
+  }
+  renderTagACChart();
+  renderDiffChart();
+  renderPlatformRadar();
+  renderWeakTop5();
+}
+
+function renderTagACChart() {
+  destroyChart('tagac');
+  const tagMap = {};
+  problems.forEach(p => {
+    (p.tags || []).forEach(t => {
+      if (!tagMap[t]) tagMap[t] = { total:0, ac:0 };
+      tagMap[t].total++;
+      if (p.result === 'AC') tagMap[t].ac++;
+    });
+  });
+  const entries = Object.entries(tagMap).map(([tag,v]) => ({ tag, rate: v.ac/v.total, ac: v.ac, total: v.total }));
+  entries.sort((a,b) => a.rate - b.rate);
+
+  if (entries.length === 0) {
+    document.getElementById('chart-tag-ac').parentElement.innerHTML = '<h4>标签 AC 率排名</h4><div class="nodata">暂无标签数据（AtCoder 题目无标签，洛谷/CF 同步后才有）</div>';
+    return;
+  }
+
+  const ctx = document.getElementById('chart-tag-ac').getContext('2d');
+  charts.tagac = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: entries.map(e => e.tag),
+      datasets: [{
+        label: 'AC率', data: entries.map(e => (e.rate*100).toFixed(1)),
+        backgroundColor: entries.map(e => e.rate < 0.5 ? 'rgba(231,76,60,.75)' : e.rate < 0.75 ? 'rgba(243,156,18,.75)' : 'rgba(39,174,96,.75)'),
+        borderRadius: 3
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => `${ctx.raw}% (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` } }
+      },
+      scales: { y: { beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } }
+    }
+  });
+}
+
+function renderDiffChart() {
+  destroyChart('diffscatter');
+  const buckets = {};
+  const diffs = problems.map(p => p.difficulty || 0).filter(d => d > 0);
+  const maxDiff = Math.max(...diffs, 800);
+  for (let lo = 0; lo <= maxDiff + 200; lo += 200) {
+    buckets[lo] = { total:0, ac:0 };
+  }
+  problems.forEach(p => {
+    const d = p.difficulty || 0;
+    if (d === 0) return;
+    const lo = Math.floor(d / 200) * 200;
+    if (buckets[lo]) { buckets[lo].total++; if (p.result==='AC') buckets[lo].ac++; }
+  });
+  const entries = Object.entries(buckets).filter(([,v]) => v.total > 0);
+
+  if (entries.length === 0) {
+    document.getElementById('chart-diff-scatter').parentElement.innerHTML = '<h4>难度-通过率</h4><div class="nodata">暂无难度数据</div>';
+    return;
+  }
+
+  const ctx = document.getElementById('chart-diff-scatter').getContext('2d');
+  charts.diffscatter = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'AC率', data: entries.map(([lo,v]) => ({ x: Number(lo)+100, y: parseFloat((v.ac/v.total*100).toFixed(1)) })),
+        backgroundColor: entries.map(([,v]) => v.ac/v.total < 0.5 ? '#e74c3c' : v.ac/v.total < 0.75 ? '#f39c12' : '#27ae60'),
+        pointRadius: Math.max(6, Math.min(14, 300 / entries.length)),
+      }]
+    },
+    options: {
+      plugins: { tooltip: { callbacks: { label: ctx => `${ctx.raw.x}分: ${ctx.raw.y}% (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` } } },
+      scales: {
+        x: { title: { display:true, text:'难度分' } },
+        y: { title: { display:true, text:'AC率' }, beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} }
+      }
+    }
+  });
+}
+
+function renderPlatformRadar() {
+  destroyChart('platformradar');
+  const platMap = {};
+  problems.forEach(p => {
+    if (!platMap[p.platform]) platMap[p.platform] = { total:0, ac:0 };
+    platMap[p.platform].total++;
+    if (p.result === 'AC') platMap[p.platform].ac++;
+  });
+  const plats = Object.keys(platMap);
+  const canvasEl = document.getElementById('chart-platform-radar');
+  if (plats.length < 2) {
+    canvasEl.style.display = 'none';
+    canvasEl.parentElement.querySelector('h4').nextElementSibling && canvasEl.parentElement.appendChild(Object.assign(document.createElement('div'), {className:'nodata', textContent:'需要至少两个平台的数据'}));
+    return;
+  }
+  canvasEl.style.display = '';
+
+  const ctx = canvasEl.getContext('2d');
+  charts.platformradar = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: plats.map(k => PLATFORM_NAMES[k] || k),
+      datasets: [{
+        label: 'AC率', data: plats.map(k => parseFloat((platMap[k].ac/platMap[k].total*100).toFixed(1))),
+        backgroundColor: 'rgba(102,126,234,.2)', borderColor: '#667eea', pointBackgroundColor: '#667eea'
+      }]
+    },
+    options: {
+      scales: { r: { beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } }
+    }
+  });
+}
+
+function renderWeakTop5() {
+  const tagMap = {};
+  problems.forEach(p => {
+    (p.tags || []).forEach(t => {
+      if (!tagMap[t]) tagMap[t] = { total:0, ac:0, wa:0, tle:0, re:0 };
+      tagMap[t].total++;
+      if (p.result === 'AC') tagMap[t].ac++;
+      else if (p.result === 'WA') tagMap[t].wa++;
+      else if (p.result === 'TLE') tagMap[t].tle++;
+      else if (p.result === 'RE') tagMap[t].re++;
+    });
+  });
+  const entries = Object.entries(tagMap)
+    .map(([tag,v]) => ({ tag, rate: v.ac/v.total, ...v }))
+    .filter(e => e.total >= 2)
+    .sort((a,b) => a.rate - b.rate)
+    .slice(0, 5);
+
+  const cont = document.getElementById('weak-top5');
+  if (entries.length === 0) {
+    cont.innerHTML = '<div class="weak-none">标签数据不足（AtCoder 无标签，洛谷/CF 同步后会出现），多刷几道题再来分析吧</div>';
+    return;
+  }
+  cont.innerHTML = entries.map((e, i) => `
+    <div class="weak-card">
+      <div class="rank">#${i+1}</div>
+      <div class="info">
+        <div class="tag-name">${e.tag}</div>
+        <div class="detail">AC ${e.ac} / 总 ${e.total} &nbsp;|&nbsp; WA ${e.wa} TLE ${e.tle} RE ${e.re}</div>
+      </div>
+      <div class="ac-rate">${(e.rate*100).toFixed(0)}%</div>
+    </div>
+  `).join('');
+}
+
+// ==================== TAB SWITCHING ====================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    document.getElementById('section-' + name).classList.add('active');
+    if (name === 'overview') renderOverview();
+    if (name === 'analysis') renderAnalysis();
+  });
+});
+
+// ==================== RENDER ALL ====================
+function renderAll() {
+  renderTable();
+  updateFilterTags();
+  renderTagSelector();
+  const activeTab = document.querySelector('.tab.active').dataset.tab;
+  if (activeTab === 'overview') renderOverview();
+  if (activeTab === 'analysis') renderAnalysis();
+}
+
+// ==================== BEHAVIOR ANALYSIS REPORT ====================
+async function runBehaviorAnalysis() {
+  if (problems.length === 0) {
+    toast('暂无数据，请先同步账号', 'error');
+    return;
+  }
+  const status = document.getElementById('analyze-status');
+  const report = document.getElementById('analyze-report');
+  status.textContent = '分析中...';
+  status.className = 'pending';
+  report.innerHTML = '';
+
+  try {
+    const resp = await fetch(`${SERVER}/api/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(problems),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.message);
+    renderBehaviorReport(data);
+    status.textContent = '分析完成';
+    status.className = 'ok';
+  } catch (e) {
+    status.textContent = '分析失败: ' + e.message;
+    status.className = 'err';
+  }
+}
+
+function renderBehaviorReport(data) {
+  const report = document.getElementById('analyze-report');
+  const b = data.behavior || {};
+  const wr = data.weakness_ranking || [];
+  const sg = data.suggestions || [];
+
+  // Helper: render issue list
+  const issues = (list, cls) => list.map(s => `<div class="report-issue${cls ? ' ' + cls : ''}">${s}</div>`).join('');
+
+  // Section 1: Behavior profile
+  let html = '<div class="report-section">';
+  html += '<h5>一、个人刷题行为与思维短板</h5>';
+  html += `<div class="report-summary">${b.summary || ''}</div>`;
+  html += '<div style="margin-top:8px;">';
+  if (b.coding && b.coding.length) {
+    html += '<div style="font-size:13px;font-weight:600;color:#e74c3c;margin-bottom:4px;">编码习惯问题</div>';
+    html += issues(b.coding);
+  }
+  if (b.algorithm && b.algorithm.length) {
+    html += '<div style="font-size:13px;font-weight:600;color:#f39c12;margin:10px 0 4px;">算法思维问题</div>';
+    html += issues(b.algorithm);
+  }
+  if (b.learning && b.learning.length) {
+    html += '<div style="font-size:13px;font-weight:600;color:#9b59b6;margin:10px 0 4px;">学习习惯问题</div>';
+    html += issues(b.learning);
+  }
+  html += '</div></div>';
+
+  // Section 2: Weakness ranking table
+  html += '<div class="report-section">';
+  html += '<h5>二、知识点薄弱排名（加权得分）</h5>';
+  const topWr = wr.slice(0, 10);
+  if (topWr.length === 0) {
+    html += '<div class="nodata">暂无标签数据（AtCoder 无标签，洛谷需输入 Cookie 同步），无法做标签维度分析</div>';
+  } else {
+    const maxScore = Math.max(1, topWr[0]?.score || 1);
+    html += '<table class="report-rank-table"><thead><tr><th>排名</th><th>知识点</th><th>得分</th><th>AC率</th><th>题目数</th><th>错误分布</th><th>问题类型</th></tr></thead><tbody>';
+    topWr.forEach((item, i) => {
+      const pct = Math.min(100, Math.round(item.score / maxScore * 100));
+      const errs = item.error_detail || {};
+      const errParts = [];
+      if (errs.WA) errParts.push(`WA:${errs.WA}`);
+      if (errs.TLE) errParts.push(`TLE:${errs.TLE}`);
+      if (errs.RE) errParts.push(`RE:${errs.RE}`);
+      if (errs.CE) errParts.push(`CE:${errs.CE}`);
+
+      let issues = [];
+      if (item.blind_count > 2) issues.push('盲目提交');
+      if (item.suspected_copy > 0) issues.push('疑似抄袭');
+      if (item.suspected_reference > 0) issues.push('疑似参考题解');
+      if (item.ac_rate < 0.3) issues.push('通过率极低');
+      if (item.ac_rate < 0.5 && item.total >= 5) issues.push('半数学不会');
+
+      html += `<tr>
+        <td>#${i + 1}</td>
+        <td><b>${item.tag}</b></td>
+        <td><b style="color:#e74c3c">${item.score}</b><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+        <td>${(item.ac_rate * 100).toFixed(0)}%</td>
+        <td>${item.total}</td>
+        <td style="font-size:11px;">${errParts.join(' ') || '无错误'}</td>
+        <td style="font-size:11px;">${issues.join('、') || '√'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  // Section 3: Suggestions
+  html += '<div class="report-section">';
+  html += '<h5>三、薄弱知识点改进建议</h5>';
+  const topSg = sg.slice(0, 5);
+  if (topSg.length === 0) {
+    html += '<div class="nodata">暂无数据</div>';
+  } else {
+    topSg.forEach(item => {
+      html += `<div style="margin-bottom:10px;padding:8px 12px;background:#fff8f0;border-radius:6px;border-left:3px solid #f39c12;">`;
+      html += `<b>${item.tag}</b> <span style="font-size:11px;color:#999;">(得分:${item.score}, AC率:${item.ac_rate}%, ${item.problem_count}题)</span>`;
+      html += '<ul class="suggestion">';
+      (item.advice || []).forEach(a => { html += `<li>→ ${a}</li>`; });
+      html += '</ul></div>';
+    });
+  }
+  html += '</div>';
+
+  report.innerHTML = html;
+  report.scrollIntoView({ behavior: 'smooth' });
+}
+
+document.getElementById('btn-analyze').addEventListener('click', runBehaviorAnalysis);
+
+// ==================== INIT ====================
+function init() {
+  load();
+  resetForm();
+  renderAll();
+  document.getElementById('btn-cancel-edit').classList.add('hidden');
+  // Restore saved handles
+  ['cf','at','lg'].forEach(k => {
+    const v = localStorage.getItem('sync_handle_' + k);
+    if (v) document.getElementById('sync-' + k).value = v;
+  });
+  // Restore saved cookie
+  const savedCookie = localStorage.getItem('sync_lg_cookie');
+  if (savedCookie) document.getElementById('sync-lg-cookie').value = savedCookie;
+  // Save on input
+  ['cf','at','lg'].forEach(k => {
+    document.getElementById('sync-' + k).addEventListener('change', function() {
+      localStorage.setItem('sync_handle_' + k, this.value);
+    });
+  });
+  document.getElementById('sync-lg-cookie').addEventListener('change', function() {
+    localStorage.setItem('sync_lg_cookie', this.value);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
