@@ -160,6 +160,8 @@ tr:hover td { background:#fafbff; }
   <div class="tab active" data-tab="records">记录管理</div>
   <div class="tab" data-tab="overview">数据总览</div>
   <div class="tab" data-tab="analysis">薄弱分析</div>
+  <div class="tab" data-tab="accounts">账户绑定</div>
+  <div class="tab" data-tab="report">周报设置</div>
 </div>
 
 <div class="container">
@@ -170,35 +172,20 @@ tr:hover td { background:#fafbff; }
     <!-- Sync panel -->
     <div class="sync-card" id="sync-card">
       <h3>账号同步</h3>
-      <p class="sync-subtitle">输入各平台账号，自动拉取所有提交记录（数据经过本地服务器代理，不会泄露）</p>
-      <div class="sync-inputs">
-        <div class="form-group">
-          <label><span class="platform-dot cf"></span> Codeforces Handle</label>
-          <input id="sync-cf" placeholder="例: tourist">
-        </div>
-        <div class="form-group">
-          <label><span class="platform-dot at"></span> AtCoder Username</label>
-          <input id="sync-at" placeholder="例: chokudai">
-        </div>
-        <div class="form-group">
-          <label><span class="platform-dot lg"></span> 洛谷 UID</label>
-          <input id="sync-lg" placeholder="例: 123456">
-        </div>
+      <p class="sync-subtitle">一键同步所有已绑定的账户数据（在「账户绑定」页面配置）</p>
+      <div id="bound-summary" style="margin-bottom:8px;font-size:13px;color:#999;">加载中...</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btn-sync-all">同步全部已绑定账户</button>
+        <button class="btn" id="btn-clear-data" style="background:#fee;color:#c33;">清除数据</button>
       </div>
-      <div class="sync-inputs" style="margin-top:6px;">
-        <div class="form-group" style="min-width:380px;">
-          <label>洛谷 Cookie（必须登录后才能拉取提交记录）</label>
-          <input id="sync-lg-cookie" placeholder="F12→Application→Cookies→luogu.com.cn 复制所有 cookie: __client_id=xxx; _uid=yyy; 其他cookie=值">
-        </div>
+      <div id="sync-progress-bar" style="display:none;margin-top:10px;background:#eee;border-radius:6px;height:20px;overflow:hidden;">
+        <div id="sync-progress-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#667eea,#764ba2);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;"></div>
       </div>
-      <div class="sync-inputs" style="margin-top:8px;">
-        <button class="btn btn-primary" id="btn-sync" style="height:36px;">全部同步</button>
-        <button class="btn btn-outline btn-sm" id="btn-sync-cf">仅同步 CF</button>
-        <button class="btn btn-outline btn-sm" id="btn-sync-at">仅同步 AT</button>
-        <button class="btn btn-outline btn-sm" id="btn-sync-lg">仅同步 洛谷</button>
-      </div>
-      <div class="sync-status" id="sync-status"></div>
-      <p class="sync-note">提示：① 洛谷 UID 从个人主页 URL 获取（如 /user/<b>123456</b>）。② 洛谷必须提供 Cookie：登录洛谷后 F12 → Application → Cookies → luogu.com.cn → 复制所有 Cookie 的 name=value，以分号分隔。③ AtCoder 和洛谷需要 <code>pip install curl_cffi</code>。④ 数据缓存 30-60 分钟。⑤ 修改代码后需重启 server.py。</p>
+      <div id="sync-status" style="margin-top:6px;font-size:13px;color:#999;"></div>
+      <p class="sync-note" style="margin-top:8px;">
+        提示：① 在「账户绑定」页面添加 CF / 洛谷 / AtCoder / 牛客账户后，同步自动生效。
+        ② 洛谷和牛客需要提供 Cookie。③ 数据缓存 30-60 分钟。
+      </p>
     </div>
 
     <!-- Manual add form -->
@@ -319,6 +306,124 @@ tr:hover td { background:#fafbff; }
     </div>
   </div>
 
+  <!-- ===== Tab 4: 账户绑定 ===== -->
+  <div id="section-accounts" class="section">
+    <div class="chart-card">
+      <h4>已绑定的平台账户</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:12px;">绑定后无需每次手动输入，换绑或删除随时生效</p>
+      <div id="bound-accounts-list" style="margin-bottom:12px;">
+        <div style="color:#999;font-size:13px;">加载中...</div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-top:12px;">
+      <h4>绑定新账户</h4>
+      <div class="sync-inputs">
+        <div class="form-group">
+          <label>平台</label>
+          <select id="bind-platform" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+            <option value="codeforces">Codeforces</option>
+            <option value="luogu">洛谷</option>
+            <option value="atcoder">AtCoder</option>
+            <option value="nowcoder">牛客</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>用户名 / Handle / UID</label>
+          <input id="bind-username" placeholder="例: tourist">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:6px;">
+        <div class="form-group" style="min-width:380px;">
+          <label>Cookie（洛谷/牛客需要，CF 可留空）</label>
+          <input id="bind-cookie" placeholder="从浏览器 F12 → Application → Cookies 复制">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-bind" style="margin-top:8px;">绑定账户</button>
+      <span id="bind-status" style="font-size:12px;color:#999;margin-left:8px;"></span>
+    </div>
+  </div>
+
+  <!-- ===== Tab 5: 周报设置 ===== -->
+  <div id="section-report" class="section">
+    <div class="chart-card">
+      <h4>邮件配置</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:12px;">每周自动生成训练分析报告并发送到指定邮箱</p>
+      <div class="sync-inputs">
+        <div class="form-group">
+          <label>SMTP 服务器</label>
+          <input id="cfg-smtp-host" placeholder="smtp.qq.com" value="smtp.qq.com">
+        </div>
+        <div class="form-group">
+          <label>端口</label>
+          <input id="cfg-smtp-port" type="number" placeholder="587" value="587">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:6px;">
+        <div class="form-group">
+          <label>发件人邮箱</label>
+          <input id="cfg-sender-email" placeholder="your@qq.com">
+        </div>
+        <div class="form-group">
+          <label>授权码（QQ邮箱需使用授权码，非登录密码）</label>
+          <input id="cfg-sender-password" type="password" placeholder="邮箱授权码">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:6px;">
+        <div class="form-group">
+          <label>收件人邮箱</label>
+          <input id="cfg-receiver-email" placeholder="receive@qq.com">
+        </div>
+      </div>
+      <div class="sync-inputs" style="margin-top:6px;">
+        <div class="form-group">
+          <label>发送时间（星期几）</label>
+          <select id="cfg-schedule-day" style="padding:8px;border:1px solid #ddd;border-radius:4px;">
+            <option value="0">周一</option>
+            <option value="1" selected>周二</option>
+            <option value="2">周三</option>
+            <option value="3">周四</option>
+            <option value="4">周五</option>
+            <option value="5">周六</option>
+            <option value="6">周日</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>发送时间（小时）</label>
+          <select id="cfg-schedule-hour" style="padding:8px;border:1px solid #ddd;border-radius:4px;">
+            <script>for(let h=0;h<24;h++) document.write('<option value="'+h+'">'+h+':00</option>');</script>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="cfg-enabled"> 启用每周自动发送
+        </label>
+        <button class="btn btn-primary" id="btn-save-email">保存配置</button>
+        <button class="btn" id="btn-test-email" style="background:#f0f0f0;">发送测试邮件</button>
+        <span id="email-status" style="font-size:12px;color:#999;"></span>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-top:12px;">
+      <h4>AI 自动打标签</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:8px;">同步完成后自动用 DeepSeek 为无标签题目推断算法标签</p>
+      <div class="sync-inputs">
+        <div class="form-group" style="min-width:300px;">
+          <label>DeepSeek API Key</label>
+          <input id="cfg-deepseek-key" type="password" placeholder="sk-...">
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-top:12px;">
+      <h4>手动生成周报</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:8px;">基于所有已绑定账户的最新数据，生成分析报告并发送邮件</p>
+      <button class="btn btn-primary" id="btn-trigger-report">为全部已绑定账户生成周报</button>
+      <span id="trigger-status" style="font-size:12px;color:#999;margin-left:8px;"></span>
+    </div>
+  </div>
+
 </div>
 
 <div id="toast-container"></div>
@@ -327,6 +432,21 @@ tr:hover td { background:#fafbff; }
 // ==================== DATA ====================
 const STORAGE_KEY = 'problem_tracker_data';
 const SERVER = 'http://localhost:8765';
+
+// Tag name Chinese mapping
+const TAG_CN = {
+  'dp':'动态规划','greedy':'贪心','math':'数学','graphs':'图论','graph':'图论',
+  'data structures':'数据结构','implementation':'实现','constructive algorithms':'构造',
+  'brute force':'暴力枚举','sortings':'排序','strings':'字符串','binary search':'二分查找',
+  'number theory':'数论','combinatorics':'组合数学','geometry':'计算几何','trees':'树',
+  'dfs and similar':'DFS','shortest paths':'最短路','two pointers':'双指针',
+  'bitmasks':'位运算','divide and conquer':'分治','flows':'网络流','games':'博弈论',
+  'hashing':'哈希','probabilities':'概率','matrices':'矩阵','dsu':'并查集',
+  'string suffix structures':'后缀结构','ternary search':'三分','meet-in-the-middle':'折半搜索',
+  'fft':'FFT','interactive':'交互','chinese remainder theorem':'中国剩余定理',
+  'expression parsing':'表达式解析','schedules':'调度',
+};
+function cnTag(t) { return TAG_CN[(t||'').toLowerCase()] || t; }
 const PLATFORM_NAMES = { luogu:'洛谷', codeforces:'Codeforces', atcoder:'AtCoder', other:'其他' };
 const RESULT_NAMES = { AC:'AC', WA:'WA', TLE:'TLE', RE:'RE', CE:'CE', MLE:'MLE', partial:'部分通过', unsolved:'未解决' };
 const PRESET_TAGS = ['dp','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','数论','几何','博弈','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路'];
@@ -426,10 +546,32 @@ async function doSyncAll() {
   toast('同步完成');
 }
 
-document.getElementById('btn-sync').addEventListener('click', doSyncAll);
-document.getElementById('btn-sync-cf').addEventListener('click', async () => { await doSync('codeforces'); renderAll(); });
-document.getElementById('btn-sync-at').addEventListener('click', async () => { await doSync('atcoder'); renderAll(); });
-document.getElementById('btn-sync-lg').addEventListener('click', async () => { await doSync('luogu'); renderAll(); });
+// Sync buttons are now handled by syncAllBound() in the new panel
+
+async function loadFromServer() {
+  try {
+    const resp = await fetch(SERVER + '/api/v2/submissions');
+    const data = await resp.json();
+    if (!Array.isArray(data) || data.length === 0) return;
+    // Merge into existing problems, avoid duplicates
+    const seen = new Set(problems.map(p => p.platform + '::' + p.problemId + '::' + p.date + '::' + p.result));
+    let added = 0;
+    for (const r of data) {
+      const key = r.platform + '::' + r.problemId + '::' + r.date + '::' + r.result;
+      if (!seen.has(key)) {
+        seen.add(key);
+        problems.push({ ...r, id: r.platform + '-' + r.problemId + '-' + r.date.replace(/-/g,'') });
+        added++;
+      }
+    }
+    save();
+    toast('已加载 ' + added + ' 条新记录');
+  } catch (e) {
+    console.error('loadFromServer:', e);
+  }
+}
+function saveToStorage() { save(); }  // alias for existing save()
+
 
 // ==================== TAGS ====================
 function getAllTags() {
@@ -795,7 +937,7 @@ function renderTagACChart() {
   charts.tagac = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: entries.map(e => e.tag),
+      labels: entries.map(e => cnTag(e.tag)),
       datasets: [{
         label: 'AC率', data: entries.map(e => (e.rate*100).toFixed(1)),
         backgroundColor: entries.map(e => e.rate < 0.5 ? 'rgba(231,76,60,.75)' : e.rate < 0.75 ? 'rgba(243,156,18,.75)' : 'rgba(39,174,96,.75)'),
@@ -805,7 +947,7 @@ function renderTagACChart() {
     options: {
       plugins: {
         legend: { display:false },
-        tooltip: { callbacks: { label: ctx => `${ctx.raw}% (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` } }
+        tooltip: { callbacks: { label: ctx => `${ctx.raw}% - ${cnTag(entries[ctx.dataIndex].tag)} (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` }, title: ctx => cnTag(entries[ctx[0].dataIndex].tag) }
       },
       scales: { y: { beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } }
     }
@@ -913,7 +1055,7 @@ function renderWeakTop5() {
     <div class="weak-card">
       <div class="rank">#${i+1}</div>
       <div class="info">
-        <div class="tag-name">${e.tag}</div>
+        <div class="tag-name">${e.tag_cn || cnTag(e.tag)}</div>
         <div class="detail">AC ${e.ac} / 总 ${e.total} &nbsp;|&nbsp; WA ${e.wa} TLE ${e.tle} RE ${e.re}</div>
       </div>
       <div class="ac-rate">${(e.rate*100).toFixed(0)}%</div>
@@ -931,6 +1073,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('section-' + name).classList.add('active');
     if (name === 'overview') renderOverview();
     if (name === 'analysis') renderAnalysis();
+    if (name === 'accounts') renderAccounts();
+    if (name === 'report') renderReportConfig();
   });
 });
 
@@ -1087,6 +1231,277 @@ function init() {
     localStorage.setItem('sync_lg_cookie', this.value);
   });
 }
+
+// ==================== ACCOUNT BINDING ====================
+async function renderAccounts() {
+  const listEl = document.getElementById('bound-accounts-list');
+  try {
+    const resp = await fetch(SERVER + '/api/accounts/bind');
+    const data = await resp.json();
+    const accounts = data.accounts || {};
+    const entries = Object.entries(accounts);
+    if (entries.length === 0) {
+      listEl.innerHTML = '<div style="color:#999;font-size:13px;">暂无绑定账户，请在下方绑定</div>';
+    } else {
+      listEl.innerHTML = entries.map(([plat, acc]) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:6px;">
+          <div>
+            <span style="font-weight:600;color:#333;">${plat}</span>
+            <span style="color:#666;margin-left:8px;">${acc.username}</span>
+            <span style="color:#999;font-size:11px;margin-left:6px;">${acc.cookie}</span>
+          </div>
+          <button class="btn" style="padding:4px 12px;font-size:11px;background:#fee;color:#c33;"
+            onclick="unbindAccount('${plat}')">解绑</button>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:#c33;">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function bindAccount() {
+  const platform = document.getElementById('bind-platform').value;
+  const username = document.getElementById('bind-username').value.trim();
+  const cookie = document.getElementById('bind-cookie').value.trim();
+  if (!username) { toast('请输入用户名'); return; }
+  const st = document.getElementById('bind-status');
+  st.textContent = '绑定中...';
+  try {
+    const resp = await fetch(SERVER + '/api/accounts/bind', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({platform, username, cookie})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      st.textContent = '已绑定 ' + platform + ': ' + username;
+      document.getElementById('bind-username').value = '';
+      document.getElementById('bind-cookie').value = '';
+      renderAccounts();
+    } else {
+      st.textContent = '失败: ' + (data.message || '未知');
+    }
+  } catch (e) {
+    st.textContent = '请求失败: ' + e.message;
+  }
+}
+
+async function unbindAccount(platform) {
+  try {
+    await fetch(SERVER + '/api/accounts/bind/' + platform, {method:'DELETE'});
+    renderAccounts();
+  } catch (e) {
+    toast('解绑失败: ' + e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btnBind = document.getElementById('btn-bind');
+  if (btnBind) btnBind.addEventListener('click', bindAccount);
+});
+
+// ==================== SYNC FROM BOUND ACCOUNTS ====================
+async function loadBoundSummary() {
+  try {
+    const resp = await fetch(SERVER + '/api/accounts/bind');
+    const data = await resp.json();
+    const accs = data.accounts || {};
+    const entries = Object.entries(accs);
+    const el = document.getElementById('bound-summary');
+    if (el) {
+      if (entries.length === 0) {
+        el.innerHTML = '<span style="color:#e67e22;">暂无绑定账户，请先到「账户绑定」页面添加平台账户</span>';
+      } else {
+        el.innerHTML = entries.map(([p,a]) => `<span style="margin-right:12px;"><b>${p}</b>: ${a.username}</span>`).join('');
+      }
+      return entries.length;
+    }
+    return 0;
+  } catch (e) { return 0; }
+}
+
+async function syncAllBound() {
+  const st = document.getElementById('sync-status');
+  const bar = document.getElementById('sync-progress-bar');
+  const fill = document.getElementById('sync-progress-fill');
+  if (!st) return;
+  st.textContent = '启动同步...';
+  st.style.color = '#666';
+  try {
+    const resp = await fetch(SERVER + '/api/v2/sync-all', { method:'POST' });
+    const data = await resp.json();
+    if (!data.ok || !data.task_id) {
+      st.textContent = '同步失败: ' + (data.message || '');
+      st.style.color = 'red';
+      return;
+    }
+    // Show progress bar
+    bar.style.display = 'block';
+    fill.style.width = '0%';
+    fill.textContent = '0%';
+
+    // Poll progress
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(SERVER + '/api/v2/crawl/progress/' + data.task_id);
+        const p = await r.json();
+        const pct = Math.round((p.progress || 0) * 100);
+        fill.style.width = pct + '%';
+        fill.textContent = pct + '%';
+        st.textContent = p.message || '';
+        st.style.color = '#666';
+        if (p.status === 'done') {
+          clearInterval(poll);
+          fill.style.width = '100%';
+          fill.textContent = '完成!';
+          st.textContent = p.message || '同步完成';
+          st.style.color = 'green';
+          bar.style.display = 'none';
+          loadBoundSummary();
+          // 从服务器拉取数据到本地
+          await loadFromServer();
+          renderAll();
+        } else if (p.status === 'failed') {
+          clearInterval(poll);
+          st.textContent = '同步失败: ' + (p.error || '');
+          st.style.color = 'red';
+          bar.style.display = 'none';
+        }
+      } catch (e) {
+        clearInterval(poll);
+        st.textContent = '进度查询失败: ' + e.message;
+        st.style.color = 'red';
+        bar.style.display = 'none';
+      }
+    }, 800);
+  } catch (e) {
+    st.textContent = '同步失败: ' + e.message;
+    st.style.color = 'red';
+  }
+}
+
+async function clearAllData() {
+  if (!confirm('确定要清除所有数据吗？此操作不可撤销。')) return;
+  const st = document.getElementById('sync-status');
+  try {
+    const resp = await fetch(SERVER + '/api/clear-data', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    const data = await resp.json();
+    st.textContent = data.message || '已清除';
+    st.style.color = 'green';
+    problems = [];
+    saveToStorage();
+    renderAll();
+  } catch (e) {
+    st.textContent = '清除失败: ' + e.message;
+    st.style.color = 'red';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadBoundSummary();
+  const btnSync = document.getElementById('btn-sync-all');
+  const btnClear = document.getElementById('btn-clear-data');
+  if (btnSync) btnSync.addEventListener('click', syncAllBound);
+  if (btnClear) btnClear.addEventListener('click', clearAllData);
+});
+
+// ==================== REPORT CONFIG ====================
+async function renderReportConfig() {
+  try {
+    const resp = await fetch(SERVER + '/api/email-config');
+    const cfg = await resp.json();
+    document.getElementById('cfg-smtp-host').value = cfg.smtp_host || 'smtp.qq.com';
+    document.getElementById('cfg-smtp-port').value = cfg.smtp_port || 587;
+    document.getElementById('cfg-sender-email').value = cfg.sender_email || '';
+    document.getElementById('cfg-sender-password').value = '';
+    document.getElementById('cfg-receiver-email').value = cfg.receiver_email || '';
+    document.getElementById('cfg-schedule-day').value = cfg.schedule_day ?? 1;
+    document.getElementById('cfg-schedule-hour').value = cfg.schedule_hour ?? 9;
+    document.getElementById('cfg-enabled').checked = cfg.enabled || false;
+    document.getElementById('cfg-deepseek-key').value = cfg.deepseek_api_key || '';
+  } catch (e) {
+    console.error('加载邮件配置失败:', e);
+  }
+}
+
+
+async function saveEmailConfig() {
+  const st = document.getElementById('email-status');
+  st.textContent = '保存中...';
+  const cfg = {
+    smtp_host: document.getElementById('cfg-smtp-host').value.trim(),
+    smtp_port: parseInt(document.getElementById('cfg-smtp-port').value) || 587,
+    sender_email: document.getElementById('cfg-sender-email').value.trim(),
+    sender_password: document.getElementById('cfg-sender-password').value,
+    receiver_email: document.getElementById('cfg-receiver-email').value.trim(),
+    schedule_day: parseInt(document.getElementById('cfg-schedule-day').value),
+    schedule_hour: parseInt(document.getElementById('cfg-schedule-hour').value),
+    enabled: document.getElementById('cfg-enabled').checked,
+    deepseek_api_key: document.getElementById('cfg-deepseek-key').value.trim(),
+  };
+  try {
+    const resp = await fetch(SERVER + '/api/email-config', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(cfg)
+    });
+    const data = await resp.json();
+    st.textContent = data.ok ? '已保存' : ('失败: ' + data.message);
+    if (data.ok) st.style.color = 'green';
+  } catch (e) {
+    st.textContent = '失败: ' + e.message;
+    st.style.color = 'red';
+  }
+}
+
+async function testEmail() {
+  const st = document.getElementById('email-status');
+  st.textContent = '发送测试邮件中...';
+  st.style.color = '#666';
+  try {
+    const resp = await fetch(SERVER + '/api/email-config/test', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      st.textContent = '测试邮件已发送，请检查收件箱';
+      st.style.color = 'green';
+    } else {
+      st.textContent = '失败: ' + (data.message || '');
+      st.style.color = 'red';
+    }
+  } catch (e) {
+    st.textContent = '失败: ' + e.message;
+    st.style.color = 'red';
+  }
+}
+
+async function triggerReport() {
+  const st = document.getElementById('trigger-status');
+  st.textContent = '正在为所有已绑定账户生成周报...';
+  st.style.color = '#666';
+  try {
+    const resp = await fetch(SERVER + '/api/scheduler/trigger', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({platform: 'all'})
+    });
+    const data = await resp.json();
+    st.textContent = data.ok ? '周报已触发！' + (data.accounts||[]).join(', ') : ('失败: ' + data.message);
+    st.style.color = data.ok ? 'green' : 'red';
+  } catch (e) {
+    st.textContent = '失败: ' + e.message;
+    st.style.color = 'red';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btnSave = document.getElementById('btn-save-email');
+  const btnTest = document.getElementById('btn-test-email');
+  const btnTrigger = document.getElementById('btn-trigger-report');
+  if (btnSave) btnSave.addEventListener('click', saveEmailConfig);
+  if (btnTest) btnTest.addEventListener('click', testEmail);
+  if (btnTrigger) btnTrigger.addEventListener('click', triggerReport);
+});
 
 init();
 </script>

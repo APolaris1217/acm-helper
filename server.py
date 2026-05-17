@@ -19,6 +19,188 @@ from datetime import datetime, timezone
 # Analysis engine
 from analyzer import analyze as analyze_submissions
 
+# --- New: crawler & db modules ---
+import threading
+from crawler.base_crawler import BaseCrawler, Submission
+from crawler.codeforces_crawler import CodeforcesCrawler
+from crawler.task_manager import TaskManager
+from db.database import init_db, get_db
+from scheduler import get_scheduler
+from email_sender import load_config as load_email_config, save_config as save_email_config
+from report_generator import generate_report
+
+_task_mgr = TaskManager()
+_CRAWLERS = {
+    "codeforces": CodeforcesCrawler(),
+}
+# AtCoder/Luogu added below after their wrapper classes
+
+BOUND_ACCOUNTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bound_accounts.json")
+
+# --- Crawler wrappers for AtCoder / Luogu ---
+
+class _AtCoderCrawler:
+    """Adapter: wraps fetch_atcoder() to match BaseCrawler interface."""
+    def fetch_submissions(self, username: str) -> list:
+        return [Submission(
+            platform=s["platform"], problem_id=s["problemId"], name=s["name"],
+            difficulty=s["difficulty"], tags=s["tags"], result=s["result"],
+            submit_time=s["date"], language=s["language"],
+        ) for s in fetch_atcoder(username)]
+
+
+class _LuoguCrawler:
+    """Adapter: wraps fetch_luogu() to match BaseCrawler interface."""
+    def __init__(self, cookie: str = ""):
+        self.cookie = cookie
+
+    def fetch_submissions(self, uid_or_username: str) -> list:
+        return [Submission(
+            platform=s["platform"], problem_id=s["problemId"], name=s["name"],
+            difficulty=s["difficulty"], tags=s["tags"], result=s["result"],
+            submit_time=s["date"], language=s["language"],
+        ) for s in fetch_luogu(uid_or_username, self.cookie)]
+
+
+_CRAWLERS["atcoder"] = _AtCoderCrawler()
+_CRAWLERS["luogu"] = _LuoguCrawler()
+
+# --- Tag name mapping ---
+TAG_CN = {
+    "dp": "动态规划", "greedy": "贪心", "math": "数学", "graphs": "图论",
+    "graph": "图论", "data structures": "数据结构", "implementation": "实现",
+    "constructive algorithms": "构造", "brute force": "暴力枚举",
+    "sortings": "排序", "strings": "字符串", "binary search": "二分查找",
+    "number theory": "数论", "combinatorics": "组合数学", "geometry": "计算几何",
+    "trees": "树", "dfs and similar": "DFS", "shortest paths": "最短路",
+    "two pointers": "双指针", "bitmasks": "位运算", "divide and conquer": "分治",
+    "flows": "网络流", "games": "博弈论", "hashing": "哈希", "probabilities": "概率",
+    "matrices": "矩阵", "string suffix structures": "后缀结构",
+    "dsu": "并查集", "schedules": "调度", "chinese remainder theorem": "中国剩余定理",
+    "ternary search": "三分", "meet-in-the-middle": "折半搜索",
+    "fft": "FFT", "interactive": "交互", "expression parsing": "表达式解析",
+}
+
+def _cn_tag(tag: str) -> str:
+    """返回中文标签名，未知的返回原文首字母大写"""
+    return TAG_CN.get(tag.lower(), tag.title())
+
+def _auto_tag_untagged():
+    """Auto-tag all untagged problems using DeepSeek AI."""
+    import json as _j
+    try:
+        from ai.deepseek_tagger import auto_tag_batch
+        db2 = get_db()
+        # Find all unique untagged problems
+        rows = db2.execute(
+            "SELECT DISTINCT problem_id, title, platform FROM submissions "
+            "WHERE tags='[]' OR tags=''"
+        ).fetchall()
+        if not rows:
+            print("  [TAGGER] No untagged problems")
+            return
+        # Deduplicate by problem_id
+        seen = set()
+        problems = []
+        for r in rows:
+            key = f"{r['platform']}:{r['problem_id']}"
+            if key not in seen:
+                seen.add(key)
+                problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
+        print(f"  [TAGGER] Auto-tagging {len(problems)} unique untagged problems...")
+        tag_map = auto_tag_batch(problems)
+        updated = 0
+        for p in problems:
+            pid = p["problem_id"]
+            plat = p["platform"]
+            tags = tag_map.get(pid, [])
+            if tags:
+                tags_json = _j.dumps(tags, ensure_ascii=False)
+                db2.execute(
+                    "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
+                    (tags_json, plat, pid)
+                )
+                updated += db2.total_changes
+        db2.commit()
+        print(f"  [TAGGER] Updated {updated} rows with AI tags")
+    except Exception as e:
+        import traceback
+        print(f"  [TAGGER] Auto-tag failed: {e}")
+        traceback.print_exc()
+
+
+def _load_bound_accounts() -> dict:
+    if os.path.exists(BOUND_ACCOUNTS_FILE):
+        import json as _j
+        with open(BOUND_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+            try:
+                return _j.load(f)
+            except (json.JSONDecodeError, IOError):
+                return {}
+    return {}
+
+def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""):
+    """在后台线程中执行爬取任务"""
+    tm = _task_mgr
+    crawler = _CRAWLERS.get(platform)
+    if not crawler:
+        tm.update(task_id, status="failed", error=f"不支持的平台: {platform}")
+        return
+
+    try:
+        tm.update(task_id, status="running", message="开始爬取...", progress=0.1)
+        all_subs = crawler.fetch_submissions(username)
+        tm.update(task_id, total_fetched=len(all_subs),
+                  message=f"已获取 {len(all_subs)} 条提交", progress=0.7)
+
+        ac_subs = [s for s in all_subs if s.result == "AC"]
+        tm.update(task_id, ac_count=len(ac_subs),
+                  message=f"爬取完成: {len(all_subs)} 条提交，{len(ac_subs)} 道 AC 题目",
+                  progress=1.0, status="done")
+
+        # 写入数据库
+        db = get_db()
+        db.execute(
+            "INSERT OR IGNORE INTO users (platform, username, last_crawl_at, crawl_count) "
+            "VALUES (?, ?, datetime('now'), 1)",
+            (platform, username)
+        )
+        db.execute(
+            "UPDATE users SET last_crawl_at=datetime('now'), crawl_count=crawl_count+1 "
+            "WHERE platform=? AND username=?",
+            (platform, username)
+        )
+
+        user_row = db.execute(
+            "SELECT id FROM users WHERE platform=? AND username=?", (platform, username)
+        ).fetchone()
+        user_id = user_row["id"]
+
+        import json
+        # Disable FK checks during bulk insert (cross-thread connection issue in SQLite)
+        db.execute("PRAGMA foreign_keys=OFF")
+        count = 0
+        for s in all_subs:
+            db.execute(
+                "INSERT OR IGNORE INTO submissions "
+                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, s.platform, s.problem_id, s.title, s.difficulty,
+                 json.dumps(s.tags, ensure_ascii=False), s.result, s.submit_time,
+                 s.language, s.url)
+            )
+            count += 1
+        db.commit()
+        db.execute("PRAGMA foreign_keys=ON")
+        print(f"  [TASK {task_id}] 已写入 {count} 条记录 (user_id={user_id})")
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"  [TASK {task_id}] 爬取失败: {e}")
+        print(f"  [TASK {task_id}] {tb}")
+        tm.update(task_id, status="failed", error=f"{e}\n{tb[-500:]}")
+
 # ---------------------------------------------------------------------------
 # TLS / HTTP client setup
 # ---------------------------------------------------------------------------
@@ -349,9 +531,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _send_error(self, msg, code=400):
         self._send_json({"error": True, "message": msg}, code)
 
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return {}
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.send_header("Cache-Control", "no-cache")
 
@@ -363,6 +555,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(204)
         self._cors()
         self.end_headers()
+
+    def do_DELETE(self):
+        self._handle_request()
 
     def do_GET(self):
         self._handle_request()
@@ -427,12 +622,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send_json(data)
 
             elif path == "/api/analyze" and self.command == "POST":
-                length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(length).decode("utf-8") if length > 0 else "[]"
-                try:
-                    submissions = json.loads(body)
-                except json.JSONDecodeError:
-                    self._send_error("Invalid JSON body", 400)
+                body = self._read_body()
+                submissions = body if isinstance(body, list) else body.get("submissions", [])
+                if not submissions:
+                    self._send_error("Missing submissions", 400)
                     return
                 print(f"  [ANALYZE] Analyzing {len(submissions)} submissions...")
                 try:
@@ -441,6 +634,458 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"  [ANALYZE ERR] {e}")
                     self._send_error(str(e), 500)
+
+            # ---- V2 API: 用户名分析流程 ----
+
+            elif path == "/api/v2/crawl/start" and self.command == "POST":
+                body = self._read_body()
+                platform = body.get("platform", "").strip()
+                username = body.get("username", "").strip()
+                cookie = body.get("cookie", "")
+                if not platform or not username:
+                    self._send_error("Missing platform or username", 400)
+                    return
+                task = _task_mgr.create(platform, username)
+                print(f"  [TASK {task.task_id}] 创建爬取任务: {platform}/{username}")
+                # 启动后台线程执行爬取
+                t = threading.Thread(
+                    target=_run_crawl_task,
+                    args=(platform, username, task.task_id, cookie),
+                    daemon=True
+                )
+                t.start()
+                self._send_json({
+                    "task_id": task.task_id,
+                    "status": "running",
+                    "message": "任务已创建，开始爬取...",
+                })
+
+            elif path.startswith("/api/v2/crawl/progress/"):
+                task_id = path.split("/")[-1]
+                task = _task_mgr.get(task_id)
+                if not task:
+                    self._send_error("Task not found", 404)
+                    return
+                self._send_json({
+                    "task_id": task.task_id,
+                    "platform": task.platform,
+                    "username": task.username,
+                    "status": task.status,
+                    "progress": task.progress,
+                    "total_fetched": task.total_fetched,
+                    "ac_count": task.ac_count,
+                    "message": task.message,
+                    "error": task.error,
+                })
+
+            elif path.startswith("/api/v2/analysis/") and self.command == "GET":
+                # path: /api/v2/analysis/{platform}/{username}
+                parts = path.split("/")
+                if len(parts) < 6:
+                    self._send_error("Invalid path, use /api/v2/analysis/{platform}/{username}", 400)
+                    return
+                platform = parts[4]
+                username = parts[5]
+                refresh = params.get("refresh", "false") == "true"
+
+                # 从数据库加载用户提交
+                db = get_db()
+                user_row = db.execute(
+                    "SELECT id FROM users WHERE platform=? AND username=?",
+                    (platform, username)
+                ).fetchone()
+
+                if not user_row:
+                    self._send_error(f"未找到用户: {platform}/{username}，请先爬取数据", 404)
+                    return
+
+                user_id = user_row["id"]
+                rows = db.execute(
+                    "SELECT * FROM submissions WHERE user_id=? AND platform=?",
+                    (user_id, platform)
+                ).fetchall()
+
+                import json as _json
+                subs = []
+                for r in rows:
+                    subs.append({
+                        "platform": r["platform"],
+                        "problemId": r["problem_id"],
+                        "name": r["title"],
+                        "difficulty": r["difficulty"],
+                        "tags": _json.loads(r["tags"]) if r["tags"] else [],
+                        "result": r["result"],
+                        "date": (r["submit_time"] or "")[:10],
+                        "language": r["language"],
+                    })
+
+                # 运行分析
+                if subs:
+                    raw_report = analyze_submissions(subs)
+                    # Map analyzer output to v2 API format
+                    weakness_ranking = raw_report.get("weakness_ranking", [])
+                    suggestions_raw = raw_report.get("suggestions", [])
+                    behavior = raw_report.get("behavior", {})
+
+                    # Convert weakness_ranking to tag_weakness with frontend fields
+                    tag_weakness = []
+                    for item in weakness_ranking:
+                        raw_tag = item.get("tag", "")
+                        tag_weakness.append({
+                            "tag": raw_tag,
+                            "tag_cn": _cn_tag(raw_tag),
+                            "ac_rate": round(item.get("ac_rate", 0) * 100, 1) if isinstance(item.get("ac_rate"), float) and item.get("ac_rate", 1) < 1 else item.get("ac_rate", 0),
+                            "total": item.get("problem_count", len(item.get("problems", []))),
+                            "weakness_score": item.get("score", 0),
+                            "avg_difficulty": 0,
+                            "error_breakdown": item.get("error_detail", {}),
+                            "problem_list": [f"{platform}:{p}" for p in item.get("problems", [])[:10]],
+                        })
+
+                    # Convert suggestions to have level and single advice string
+                    suggestions = []
+                    for s in suggestions_raw:
+                        raw_tag = s.get("tag", "")
+                        score = s.get("score", 0)
+                        advices = s.get("advice", [])
+                        if isinstance(advices, str):
+                            advices = [advices]
+                        level = "critical" if score > 100 else "warning" if score > 50 else "info"
+                        suggestions.append({
+                            "level": level,
+                            "tag": raw_tag,
+                            "tag_cn": _cn_tag(raw_tag),
+                            "advice": "；".join(advices),
+                            "recommended_count": max(5, s.get("problem_count", 0) // 3),
+                        })
+                    print(f"  [V2-ANALYZE] Post-processed {len(suggestions_raw)} raw suggestions -> {len(suggestions)} formatted", flush=True)
+
+                    report = {
+                        "tag_weakness": tag_weakness,
+                        "behavior_profile": behavior,
+                        "suggestions": suggestions,
+                        "_handler": "v2_analysis",  # marker to verify handler
+                    }
+                else:
+                    report = {"tag_weakness": [], "behavior_profile": {}, "suggestions": []}
+
+                # 基础统计
+                ac_subs = [s for s in subs if s["result"] == "AC"]
+                unique_ac = {}
+                for s in ac_subs:
+                    pid = s["problemId"]
+                    if pid not in unique_ac:
+                        unique_ac[pid] = s
+
+                active_days = len(set(s["date"] for s in subs if s["date"]))
+                total = len(subs)
+                ac_cnt = len(ac_subs)
+
+                from collections import Counter
+                diff_counter = Counter(s["difficulty"] for s in unique_ac.values() if s["difficulty"])
+
+                difficulty_distribution = {
+                    "入门 (0-800)": sum(c for d, c in diff_counter.items() if d < 800),
+                    "普及 (800-1200)": sum(c for d, c in diff_counter.items() if 800 <= d < 1200),
+                    "提高 (1200-1600)": sum(c for d, c in diff_counter.items() if 1200 <= d < 1600),
+                    "省选 (1600-2000)": sum(c for d, c in diff_counter.items() if 1600 <= d < 2000),
+                    "NOI (2000-2400)": sum(c for d, c in diff_counter.items() if 2000 <= d < 2400),
+                    "3000+": sum(c for d, c in diff_counter.items() if d >= 3000),
+                }
+
+                self._send_json({
+                    "platform": platform,
+                    "username": username,
+                    "basic_stats": {
+                        "total_ac_problems": len(unique_ac),
+                        "total_submissions": total,
+                        "ac_count": ac_cnt,
+                        "ac_rate": round(ac_cnt / total * 100, 1) if total > 0 else 0,
+                        "active_days": active_days,
+                    },
+                    "difficulty_distribution": difficulty_distribution,
+                    "weakness": report,
+                })
+
+            # ---- Account binding ----
+
+            elif path == "/api/accounts/bind" and self.command == "GET":
+                accounts = {}
+                if os.path.exists(BOUND_ACCOUNTS_FILE):
+                    import json as _j
+                    with open(BOUND_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                        accounts = _j.load(f)
+                safe = {}
+                for plat, acc in accounts.items():
+                    safe[plat] = {"username": acc.get("username", ""), "cookie": "***" if acc.get("cookie") else ""}
+                self._send_json({"accounts": safe, "count": len(accounts)})
+
+            elif path == "/api/accounts/bind" and self.command == "POST":
+                body = self._read_body()
+                platform = body.get("platform", "").strip()
+                username = body.get("username", "").strip()
+                cookie = body.get("cookie", "")
+                if not platform or not username:
+                    self._send_error("Missing platform or username", 400)
+                    return
+                accounts = {}
+                if os.path.exists(BOUND_ACCOUNTS_FILE):
+                    import json as _j
+                    with open(BOUND_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                        accounts = _j.load(f)
+                accounts[platform] = {"username": username, "cookie": cookie}
+                import json as _j
+                with open(BOUND_ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                    _j.dump(accounts, f, ensure_ascii=False, indent=2)
+                get_scheduler().reload_accounts()
+                print(f"  [ACCOUNTS] 绑定 {platform}: {username}")
+                self._send_json({"ok": True, "platform": platform, "username": username})
+
+            elif path.startswith("/api/accounts/bind/") and self.command == "DELETE":
+                platform = path.split("/")[-1]
+                accounts = {}
+                if os.path.exists(BOUND_ACCOUNTS_FILE):
+                    import json as _j
+                    with open(BOUND_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                        accounts = _j.load(f)
+                if platform in accounts:
+                    del accounts[platform]
+                    import json as _j
+                    with open(BOUND_ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+                        _j.dump(accounts, f, ensure_ascii=False, indent=2)
+                    get_scheduler().reload_accounts()
+                    self._send_json({"ok": True, "message": f"已解绑 {platform}"})
+                else:
+                    self._send_error(f"未找到 {platform} 绑定", 404)
+
+            # ---- Email config ----
+
+            elif path == "/api/email-config" and self.command == "GET":
+                cfg = load_email_config()
+                safe = dict(cfg)
+                safe["sender_password"] = "***" if cfg.get("sender_password") else ""
+                self._send_json(safe)
+
+            elif path == "/api/email-config" and self.command == "POST":
+                body = self._read_body()
+                cfg = load_email_config()
+                for key in ("smtp_host", "smtp_port", "sender_email", "sender_password",
+                           "receiver_email", "schedule_day", "schedule_hour", "enabled"):
+                    if key in body:
+                        cfg[key] = body[key]
+                save_email_config(cfg)
+                if cfg.get("enabled"):
+                    get_scheduler().reload_accounts()
+                    get_scheduler().start()
+                self._send_json({"ok": True, "message": "邮件配置已保存"})
+
+            elif path == "/api/email-config/test" and self.command == "POST":
+                body = self._read_body()
+                cfg = load_email_config()
+                try:
+                    from email_sender import send_report
+                    send_report(
+                        "# ACM Helper 测试邮件\n\n这是一封测试邮件。\n\n> ACM Helper 自动发送",
+                        f"[测试] ACM Helper 邮件配置验证 - {datetime.now().strftime('%H:%M:%S')}"
+                    )
+                    self._send_json({"ok": True, "message": "测试邮件已发送"})
+                except Exception as e:
+                    self._send_error(str(e), 500)
+
+            # ---- Scheduler ----
+
+            elif path == "/api/scheduler/status" and self.command == "GET":
+                cfg = load_email_config()
+                self._send_json({
+                    "enabled": cfg.get("enabled", False),
+                    "schedule_day": cfg.get("schedule_day", 1),
+                    "schedule_hour": cfg.get("schedule_hour", 9),
+                    "bound_accounts": len(get_scheduler()._bound_accounts),
+                })
+
+            elif path == "/api/scheduler/trigger" and self.command == "POST":
+                body = self._read_body()
+                platform = body.get("platform", "").strip()
+                username = body.get("username", "").strip()
+                if not platform or not username:
+                    self._send_error("Missing platform or username", 400)
+                    return
+
+                def _manual_report():
+                    sched = get_scheduler()
+                    try:
+                        sched._refresh_data(platform, username)
+                        subs = sched._load_submissions(platform, username)
+                        from datetime import timedelta
+                        now = datetime.now()
+                        report = generate_report(
+                            target=f"{platform}: {username}",
+                            from_date=(now - timedelta(days=7)).strftime("%Y-%m-%d"),
+                            to_date=now.strftime("%Y-%m-%d"),
+                            submissions=subs,
+                        )
+                        cfg = load_email_config()
+                        if cfg.get("enabled") and cfg.get("receiver_email"):
+                            send_report(report, f"ACM 训练周报 - {username}({platform}) - {now.strftime('%Y-%m-%d')}")
+                        print(f"  [SCHEDULER] 手动周报已生成: {platform}/{username}")
+                    except Exception as e:
+                        print(f"  [SCHEDULER] 手动周报失败: {e}")
+
+                threading.Thread(target=_manual_report, daemon=True).start()
+                self._send_json({"ok": True, "message": f"周报生成已触发: {platform}/{username}"})
+
+            # ---- Get submissions for bound accounts ----
+            elif path == "/api/v2/submissions" and self.command == "GET":
+                platform = params.get("platform", "").strip()
+                username = params.get("username", "").strip()
+                db = get_db()
+                if platform and username:
+                    user_row = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (platform, username)).fetchone()
+                    if not user_row:
+                        self._send_json([])
+                        return
+                    rows = db.execute("SELECT * FROM submissions WHERE user_id=?", (user_row["id"],)).fetchall()
+                else:
+                    # Return all bound accounts' submissions
+                    accounts = _load_bound_accounts()
+                    rows = []
+                    for plat, acc in accounts.items():
+                        uname = acc.get("username", "")
+                        if not uname:
+                            continue
+                        ur = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (plat, uname)).fetchone()
+                        if ur:
+                            batch = db.execute("SELECT * FROM submissions WHERE user_id=?", (ur["id"],)).fetchall()
+                            rows.extend(batch)
+                import json as _j
+                result = []
+                for r in rows:
+                    result.append({
+                        "platform": r["platform"],
+                        "problemId": r["problem_id"],
+                        "name": r["title"],
+                        "difficulty": r["difficulty"],
+                        "tags": _j.loads(r["tags"]) if r["tags"] else [],
+                        "result": r["result"],
+                        "date": (r["submit_time"] or "")[:10],
+                        "language": r["language"],
+                    })
+                self._send_json(result)
+
+            # ---- Sync all bound accounts ----
+            elif path == "/api/v2/sync-all" and self.command == "POST":
+                accounts = _load_bound_accounts()
+                if not accounts:
+                    self._send_error("没有绑定的账户，请先在「账户绑定」页面添加", 400)
+                    return
+
+                task = _task_mgr.create("all", ", ".join(f"{p}:{a.get('username','')}" for p, a in accounts.items()))
+                task_id = task.task_id
+
+                def _sync_all():
+                    tm = _task_mgr
+                    sched = get_scheduler()
+                    plats = list(accounts.keys())
+                    total = len(plats)
+                    for i, plat in enumerate(plats):
+                        acc = accounts[plat]
+                        uname = acc.get("username", "")
+                        if not uname:
+                            continue
+                        tm.update(task_id, status="running", progress=round(i/total, 2),
+                                  message=f"正在同步 {plat}/{uname} ({i+1}/{total})...")
+                        try:
+                            sched._refresh_data(plat, uname, acc.get("cookie", ""))
+                            tm.update(task_id, total_fetched=(i+1), ac_count=0,
+                                      message=f"{plat}/{uname} 完成 ({i+1}/{total})",
+                                      progress=round((i+1)/total, 2))
+                            print(f"  [SYNC-ALL] {plat}/{uname} OK")
+                        except Exception as e:
+                            print(f"  [SYNC-ALL] {plat}/{uname} 失败: {e}")
+                            tm.update(task_id, error=f"{plat}/{uname}: {e}")
+                    # Auto-tag untagged problems
+                    tm.update(task_id, status="running", progress=0.95,
+                              message="AI 自动识别题目标签...")
+                    _auto_tag_untagged()
+                    tm.update(task_id, status="done", progress=1.0,
+                              message=f"全部 {total} 个账户同步完成")
+
+                threading.Thread(target=_sync_all, daemon=True).start()
+                self._send_json({"ok": True, "task_id": task_id, "accounts": list(accounts.keys())})
+
+            # ---- AI Auto-tag ----
+            elif path == "/api/auto-tag" and self.command == "POST":
+                body = self._read_body()
+                platform = body.get("platform", "").strip()
+                if not platform:
+                    self._send_error("Missing platform", 400)
+                    return
+                from ai.deepseek_tagger import auto_tag_batch
+                db = get_db()
+                # Find untagged problems
+                rows = db.execute(
+                    "SELECT DISTINCT problem_id, title FROM submissions "
+                    "WHERE platform=? AND (tags='[]' OR tags='')",
+                    (platform,)
+                ).fetchall()
+                problems = [{"problem_id": r["problem_id"], "title": r["title"]} for r in rows]
+                # Deduplicate by problem_id
+                seen = {}
+                unique = []
+                for p in problems:
+                    if p["problem_id"] not in seen:
+                        seen[p["problem_id"]] = True
+                        unique.append(p)
+                if not unique:
+                    self._send_json({"ok": True, "message": "没有需要打标签的题目", "count": 0})
+                    return
+
+                print(f"  [TAGGER] Auto-tagging {len(unique)} problems for {platform}...")
+                def _do_tag():
+                    import json as _j
+                    try:
+                        tag_map = auto_tag_batch(unique)
+                        db2 = get_db()
+                        updated = 0
+                        for pid, tags in tag_map.items():
+                            if tags:
+                                tags_json = _j.dumps(tags, ensure_ascii=False)
+                                db2.execute(
+                                    "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
+                                    (tags_json, platform, pid)
+                                )
+                                updated += db2.total_changes
+                        db2.commit()
+                        print(f"  [TAGGER] Updated {updated} rows for {platform}")
+                    except Exception as e:
+                        import traceback
+                        print(f"  [TAGGER] Failed: {e}")
+                        traceback.print_exc()
+
+                threading.Thread(target=_do_tag, daemon=True).start()
+                self._send_json({"ok": True, "message": f"开始为 {len(unique)} 道{platform}题目打标签...", "count": len(unique)})
+
+            # ---- Clear data ----
+            elif path == "/api/clear-data" and self.command == "POST":
+                body = self._read_body()
+                tgt_plat = body.get("platform", "").strip()
+                tgt_user = body.get("username", "").strip()
+                db = get_db()
+                if tgt_plat and tgt_user:
+                    ur = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (tgt_plat, tgt_user)).fetchone()
+                    if ur:
+                        db.execute("DELETE FROM submissions WHERE user_id=?", (ur["id"],))
+                        db.execute("DELETE FROM users WHERE id=?", (ur["id"],))
+                        db.commit()
+                        self._send_json({"ok": True, "message": f"已清除 {tgt_plat}/{tgt_user}"})
+                    else:
+                        self._send_error("未找到", 404)
+                else:
+                    db.execute("DELETE FROM submissions")
+                    db.execute("DELETE FROM users")
+                    db.execute("DELETE FROM analysis_snapshots")
+                    db.commit()
+                    self._send_json({"ok": True, "message": "已清除全部数据"})
 
             else:
                 self._send_error("Not found", 404)
@@ -467,6 +1112,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+    init_db()
+
+    # 启动周报调度器
+    email_cfg = load_email_config()
+    if email_cfg.get("enabled"):
+        sched = get_scheduler()
+        sched.start()
 
     if not _HAS_CURL_CFFI:
         print("=" * 60)
