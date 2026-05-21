@@ -166,7 +166,7 @@ tr:hover td { background:#fafbff; }
           <input id="f-name" placeholder="题目名称">
         </div>
         <div class="form-group">
-          <label>难度分 <span class="diff-helper" onclick="showDiffModal()" title="查看各平台难度规则">?</span></label>
+          <label>难度分</label>
           <input id="f-difficulty" type="number" placeholder="例: 1200">
         </div>
       </div>
@@ -221,7 +221,7 @@ tr:hover td { background:#fafbff; }
       <table>
         <thead>
           <tr>
-            <th>平台</th><th>题号</th><th>题名</th><th>难度</th><th>标签</th><th>结果</th><th>日期</th><th>耗时</th><th>操作</th>
+            <th>平台</th><th>题号</th><th>题名</th><th>难度 <span class="diff-helper" onclick="showDiffModal()" title="查看各平台难度计算规则">?</span></th><th>标签</th><th>结果</th><th>日期</th><th>耗时</th><th>操作</th>
           </tr>
         </thead>
         <tbody id="problem-tbody"></tbody>
@@ -622,9 +622,9 @@ function renderTrend() {
 
 function renderResultDist() {
   destroyChart('result');
-  const order = ['AC','WA','TLE','RE','partial','unsolved'];
+  const order = ['AC','WA','TLE','RE','unsolved'];
   const data = order.map(r => problems.filter(p => p.result === r).length);
-  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#95a5a6','#bdc3c7'];
+  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#bdc3c7'];
   const ctx = document.getElementById('chart-result').getContext('2d');
   charts.result = new Chart(ctx, {
     type: 'bar',

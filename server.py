@@ -291,6 +291,7 @@ AC_VERDICT_MAP = {
 LUOGU_STATUS_MAP = {
     0: "unsolved", 1: "unsolved", 2: "CE", 3: "RE", 4: "MLE",
     5: "TLE", 6: "WA", 7: "RE", 11: "RE", 12: "AC",
+    14: "unknown",  # "Unaccepted" — need record detail to get specific status
 }
 LUOGU_STRING_STATUS_MAP = {
     "accepted": "AC", "wrong answer": "WA", "time limit exceeded": "TLE",
@@ -538,6 +539,74 @@ def fetch_luogu(uid, cookie_str=""):
         page += 1
         time.sleep(0.5)
     print(f"  [LG] Got {len(submissions)} records total")
+
+    # Enrich status=14 (Unaccepted) records by fetching individual detail
+    unknown = [r for r in submissions if r.get("status") == 14]
+    if unknown:
+        print(f"  [LG] Enriching {len(unknown)} status=14 records...")
+        enriched = 0
+        for i, r in enumerate(unknown):
+            rid = r.get("id", 0)
+            if not rid:
+                continue
+            try:
+                detail_url = f"https://www.luogu.com.cn/record/{rid}?_contentOnly=1"
+                dr = _cf_get(detail_url, headers=headers, cookies=cookies if cookies else None, timeout=15)
+                dd = dr.json()
+                cd = dd.get("currentData", {})
+                rec = cd.get("record", cd)
+                if isinstance(rec, dict):
+                    # Collect test case statuses from detail.judgeResult.subtasks
+                    judge = rec.get("detail", {}).get("judgeResult", {})
+                    subtasks = judge.get("subtasks", [])
+                    tc_statuses = set()
+                    for sub in subtasks:
+                        tcs = sub.get("testCases") or []
+                        if isinstance(tcs, dict):
+                            for tc in tcs.values():
+                                tc_statuses.add(tc.get("status"))
+                        elif isinstance(tcs, list):
+                            for tc in tcs:
+                                tc_statuses.add(tc.get("status"))
+                    # Find the most specific error (exclude 12=AC and 14=Unknown)
+                    specific = tc_statuses - {12, 14}
+                    if specific:
+                        for priority in [6, 5, 7, 4, 2, 3]:
+                            if priority in specific:
+                                r["status"] = priority
+                                enriched += 1
+                                if enriched <= 3:
+                                    print(f"    [LG]   {rid}: 14→{priority} ({LUOGU_STATUS_MAP.get(priority, '?')}) [testCases: {sorted(specific)}]")
+                                break
+                        else:
+                            r["status"] = sorted(specific)[0]
+                            enriched += 1
+                    elif not tc_statuses:
+                        # No test cases at all — use score to guess: 0=CE, >0=WA
+                        score = rec.get("score", 0)
+                        if score == 0:
+                            r["status"] = 2  # CE
+                        else:
+                            r["status"] = 6  # WA
+                        enriched += 1
+                    else:
+                        # tc_statuses only contains {12, 14} — all passed or unknown
+                        # Use score to determine: 0 → likely CE, otherwise WA
+                        score = rec.get("score", 0)
+                        if score == 0:
+                            r["status"] = 2  # CE
+                        elif score >= 100:
+                            r["status"] = 12  # full AC
+                        else:
+                            r["status"] = 6  # WA (partial)
+                        enriched += 1
+            except Exception:
+                pass
+            if i % 10 == 0 and i > 0:
+                print(f"    [LG]   progress {i}/{len(unknown)}")
+            time.sleep(0.15)  # rate limit
+        print(f"  [LG] Enriched {enriched}/{len(unknown)} records")
+
     return [transform_lg(r) for r in submissions]
 
 # ---------------------------------------------------------------------------

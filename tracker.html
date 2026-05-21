@@ -219,7 +219,7 @@ tr:hover td { background:#fafbff; }
           <input id="f-name" placeholder="题目名称">
         </div>
         <div class="form-group">
-          <label>难度分 <span class="diff-helper" onclick="showDiffModal()" title="查看各平台难度规则">?</span></label>
+          <label>难度分</label>
           <input id="f-difficulty" type="number" placeholder="例: 1200">
         </div>
       </div>
@@ -262,7 +262,7 @@ tr:hover td { background:#fafbff; }
     <div class="form-card">
       <div class="filter-bar">
         <select id="filter-platform"><option value="">全部平台</option><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option><option value="other">其他</option></select>
-        <select id="filter-result"><option value="">全部结果</option><option value="AC">AC</option><option value="WA">WA</option><option value="TLE">TLE</option><option value="RE">RE</option><option value="CE">CE</option><option value="MLE">MLE</option><option value="partial">partial</option><option value="unsolved">unsolved</option></select>
+        <select id="filter-result"><option value="">全部结果</option><option value="AC">AC</option><option value="WA">WA</option><option value="TLE">TLE</option><option value="RE">RE</option><option value="CE">CE</option><option value="MLE">MLE</option><option value="unsolved">unsolved</option></select>
         <select id="filter-tag"><option value="">全部标签</option></select>
         <input id="filter-search" placeholder="搜索题号/题名...">
         <button class="btn btn-outline btn-sm" id="btn-export">导出 JSON</button>
@@ -275,7 +275,7 @@ tr:hover td { background:#fafbff; }
       <table>
         <thead>
           <tr>
-            <th>平台</th><th>题号</th><th>题名</th><th>难度</th><th>标签</th><th>结果</th><th>日期</th><th>语言</th><th>操作</th>
+            <th>平台</th><th>题号</th><th>题名</th><th>难度 <span class="diff-helper" onclick="showDiffModal()" title="查看各平台难度计算规则">?</span></th><th>标签</th><th>结果</th><th>日期</th><th>语言</th><th>操作</th>
           </tr>
         </thead>
         <tbody id="problem-tbody"></tbody>
@@ -934,9 +934,9 @@ function renderTrend() {
 
 function renderResultDist() {
   destroyChart('result');
-  const order = ['AC','WA','TLE','RE','CE','MLE','partial','unsolved'];
+  const order = ['AC','WA','TLE','RE','CE','MLE','unsolved'];
   const data = order.map(r => problems.filter(p => normalizeResult(p.result) === r).length);
-  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#9b59b6','#3498db','#95a5a6','#bdc3c7'];
+  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#9b59b6','#3498db','#bdc3c7'];
   const ctx = document.getElementById('chart-result').getContext('2d');
   charts.result = new Chart(ctx, {
     type: 'bar',
