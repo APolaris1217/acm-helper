@@ -10,6 +10,8 @@ Core design principle:
   time interval between submissions, and historical ability continuity.
 """
 
+from tag_map import cn_tag
+
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 import math
@@ -345,7 +347,10 @@ def score_tags(problem_analyses, submissions):
             genuineness_penalty = PENALTY["suspected_reference"]
 
         for tag in tags:
-            ts = tag_scores[tag]
+            if tag == '*special':
+                continue
+            key = cn_tag(tag)
+            ts = tag_scores[key]
             ts["score"] += base_score + genuineness_penalty
             ts["total"] += 1
             if analysis["ever_ac"]:
@@ -602,6 +607,12 @@ def analyze(submissions):
 
     # Suggestions
     suggestions = generate_suggestions(tag_scores, behavior)
+
+    # Convert all tags to Chinese display names
+    for item in tag_scores:
+        item["tag"] = cn_tag(item.get("tag", ""))
+    for item in suggestions:
+        item["tag"] = cn_tag(item.get("tag", ""))
 
     return {
         "behavior": behavior,

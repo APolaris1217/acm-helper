@@ -46,7 +46,7 @@ def init_db():
             code          TEXT DEFAULT '',
             url           TEXT DEFAULT '',
             created_at    TEXT DEFAULT (datetime('now')),
-            UNIQUE(user_id, platform, problem_id, submit_time)
+            UNIQUE(user_id, platform, problem_id, submit_time, result)
         );
 
         CREATE INDEX IF NOT EXISTS idx_submissions_user
@@ -77,5 +77,35 @@ def init_db():
 
         INSERT OR IGNORE INTO deepseek_config (id) VALUES (1);
     """)
+
+    # Migration: add 'result' to UNIQUE constraint (fixes same-day multi-submission dedup bug)
+    cur = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='submissions'")
+    row = cur.fetchone()
+    if row and 'result' not in row['sql'].split('UNIQUE')[1] if 'UNIQUE' in row['sql'] else False:
+        print("  [DB] 迁移 submissions 表 UNIQUE 约束（加入 result 列）...")
+        db.executescript("""
+            CREATE TABLE IF NOT EXISTS submissions_new (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER NOT NULL REFERENCES users(id),
+                platform      TEXT NOT NULL,
+                problem_id    TEXT NOT NULL,
+                title         TEXT DEFAULT '',
+                difficulty    INTEGER DEFAULT 0,
+                tags          TEXT DEFAULT '[]',
+                result        TEXT DEFAULT '',
+                submit_time   TEXT DEFAULT '',
+                language      TEXT DEFAULT '',
+                code          TEXT DEFAULT '',
+                url           TEXT DEFAULT '',
+                created_at    TEXT DEFAULT (datetime('now')),
+                UNIQUE(user_id, platform, problem_id, submit_time, result)
+            );
+            INSERT OR IGNORE INTO submissions_new SELECT * FROM submissions;
+            DROP TABLE submissions;
+            ALTER TABLE submissions_new RENAME TO submissions;
+            CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_submissions_result ON submissions(user_id, result);
+            CREATE INDEX IF NOT EXISTS idx_submissions_time ON submissions(user_id, submit_time);
+        """)
     db.commit()
     print(f"  [DB] 数据库已初始化: {DB_PATH}")

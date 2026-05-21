@@ -15,6 +15,8 @@ KNOWN_TAGS = [
     "matrices", "dsu", "fft", "interactive", "ternary search",
     "meet-in-the-middle", "chinese remainder theorem", "expression parsing",
     "string suffix structures", "schedules",
+    "search", "simulation", "prefix sum", "bfs", "stl",
+    "graph", "graph matchings",
 ]
 
 

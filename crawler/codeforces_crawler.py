@@ -41,7 +41,7 @@ class CodeforcesCrawler(BaseCrawler):
                 problem_id=f"{problem.get('contestId', '')}{problem.get('index', '')}",
                 title=f"{problem.get('contestId', '')}{problem.get('index', '')} - {problem.get('name', '')}",
                 difficulty=problem.get("rating", 0) or 0,
-                tags=[t.lower() for t in problem.get("tags", [])],
+                tags=[t.lower() for t in problem.get("tags", []) if t.lower() != "*special"],
                 result=result,
                 submit_time=time.strftime(
                     "%Y-%m-%dT%H:%M:%S",

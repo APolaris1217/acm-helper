@@ -23,6 +23,7 @@ from analyzer import analyze as analyze_submissions
 import threading
 from crawler.base_crawler import BaseCrawler, Submission
 from crawler.codeforces_crawler import CodeforcesCrawler
+from crawler.nowcoder_crawler import NowCoderCrawler
 from crawler.task_manager import TaskManager
 from db.database import init_db, get_db
 from scheduler import get_scheduler
@@ -56,34 +57,28 @@ class _LuoguCrawler:
 
     def fetch_submissions(self, uid_or_username: str) -> list:
         return [Submission(
-            platform=s["platform"], problem_id=s["problemId"], name=s["name"],
+            platform=s["platform"], problem_id=s["problemId"], title=s["name"],
             difficulty=s["difficulty"], tags=s["tags"], result=s["result"],
             submit_time=s["date"], language=s["language"],
         ) for s in fetch_luogu(uid_or_username, self.cookie)]
 
 
+class _NowCoderCrawler:
+    """Adapter: wraps NowCoderCrawler to match BaseCrawler interface."""
+    def __init__(self, cookie: str = ""):
+        self.cookie = cookie
+
+    def fetch_submissions(self, username: str) -> list:
+        nc = NowCoderCrawler(cookie=self.cookie)
+        return nc.fetch_submissions(username)
+
+
 _CRAWLERS["atcoder"] = _AtCoderCrawler()
 _CRAWLERS["luogu"] = _LuoguCrawler()
+_CRAWLERS["nowcoder"] = _NowCoderCrawler()
 
 # --- Tag name mapping ---
-TAG_CN = {
-    "dp": "动态规划", "greedy": "贪心", "math": "数学", "graphs": "图论",
-    "graph": "图论", "data structures": "数据结构", "implementation": "实现",
-    "constructive algorithms": "构造", "brute force": "暴力枚举",
-    "sortings": "排序", "strings": "字符串", "binary search": "二分查找",
-    "number theory": "数论", "combinatorics": "组合数学", "geometry": "计算几何",
-    "trees": "树", "dfs and similar": "DFS", "shortest paths": "最短路",
-    "two pointers": "双指针", "bitmasks": "位运算", "divide and conquer": "分治",
-    "flows": "网络流", "games": "博弈论", "hashing": "哈希", "probabilities": "概率",
-    "matrices": "矩阵", "string suffix structures": "后缀结构",
-    "dsu": "并查集", "schedules": "调度", "chinese remainder theorem": "中国剩余定理",
-    "ternary search": "三分", "meet-in-the-middle": "折半搜索",
-    "fft": "FFT", "interactive": "交互", "expression parsing": "表达式解析",
-}
-
-def _cn_tag(tag: str) -> str:
-    """返回中文标签名，未知的返回原文首字母大写"""
-    return TAG_CN.get(tag.lower(), tag.title())
+from tag_map import TAG_CN, cn_tag as _cn_tag
 
 def _auto_tag_untagged():
     """Auto-tag all untagged problems using DeepSeek AI."""
@@ -147,6 +142,10 @@ def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""
         tm.update(task_id, status="failed", error=f"不支持的平台: {platform}")
         return
 
+    # 如果是 Luogu / NowCoder crawler，设置 cookie（解决 cookie 丢失导致只有 AC/unsolved 的问题）
+    if platform in ("luogu", "nowcoder") and cookie:
+        crawler.cookie = cookie
+
     try:
         tm.update(task_id, status="running", message="开始爬取...", progress=0.1)
         all_subs = crawler.fetch_submissions(username)
@@ -181,14 +180,24 @@ def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""
         db.execute("PRAGMA foreign_keys=OFF")
         count = 0
         for s in all_subs:
+            tags_json = json.dumps(s.tags, ensure_ascii=False)
+            diff = s.difficulty or 0
             db.execute(
                 "INSERT OR IGNORE INTO submissions "
                 "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, s.platform, s.problem_id, s.title, s.difficulty,
-                 json.dumps(s.tags, ensure_ascii=False), s.result, s.submit_time,
+                (user_id, s.platform, s.problem_id, s.title, diff,
+                 tags_json, s.result, s.submit_time,
                  s.language, s.url)
             )
+            # Update tags/difficulty if server has new data
+            if (diff and diff > 0) or (tags_json and tags_json != '[]'):
+                db.execute(
+                    "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
+                    "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=?",
+                    (diff, diff, tags_json, tags_json, user_id, s.platform, s.problem_id, s.submit_time, s.result)
+                )
             count += 1
         db.commit()
         db.execute("PRAGMA foreign_keys=ON")
@@ -283,6 +292,16 @@ LUOGU_STATUS_MAP = {
     0: "unsolved", 1: "unsolved", 2: "CE", 3: "RE", 4: "MLE",
     5: "TLE", 6: "WA", 7: "RE", 11: "RE", 12: "AC",
 }
+LUOGU_STRING_STATUS_MAP = {
+    "accepted": "AC", "wrong answer": "WA", "time limit exceeded": "TLE",
+    "time exceeded": "TLE", "memory limit exceeded": "MLE",
+    "runtime error": "RE", "compile error": "CE",
+    "output limit exceeded": "RE", "waiting": "unsolved",
+    "judging": "unsolved", "running": "unsolved", "pending": "unsolved",
+    "system error": "unsolved", "unknown error": "unsolved",
+    "ac": "AC", "wa": "WA", "tle": "TLE", "mle": "MLE", "re": "RE", "ce": "CE",
+    "ole": "RE", "uke": "RE", "pa": "partial",
+}
 
 
 def transform_cf(sub):
@@ -296,7 +315,7 @@ def transform_cf(sub):
         "problemId": f"{prob.get('contestId','')}{prob.get('index','')}",
         "name": prob.get("name", ""),
         "difficulty": prob.get("rating", 0) or 0,
-        "tags": [t.lower() for t in prob.get("tags", [])],
+        "tags": [t.lower() for t in prob.get("tags", []) if t.lower() != "*special"],
         "result": result,
         "date": date,
         "language": sub.get("programmingLanguage", ""),
@@ -323,7 +342,10 @@ def transform_ac(sub, diff_map):
 
 def transform_lg(rec):
     status = rec.get("status", 0)
-    result = LUOGU_STATUS_MAP.get(status, "unsolved")
+    if isinstance(status, str):
+        result = LUOGU_STRING_STATUS_MAP.get(status.strip().lower(), "unsolved")
+    else:
+        result = LUOGU_STATUS_MAP.get(status, "unsolved")
     prob = rec.get("problem", {}) or {}
     ts = rec.get("submitTime", 0) or rec.get("time", 0)
     date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else ""
@@ -373,13 +395,26 @@ def fetch_atcoder(username):
             "请运行: pip install curl_cffi"
         )
 
-    # Step 1: get difficulty map
-    print(f"  [AT] Fetching problem difficulty map...")
-    r = _cf_get("https://kenkoooo.com/atcoder/resources/merged-problems.json")
-    r.raise_for_status()
-    raw = r.json()
-    diff_map = {p["id"]: p for p in raw}
-    print(f"  [AT] Got {len(diff_map)} problems")
+    # Step 1: get problem info + difficulty models
+    print(f"  [AT] Fetching problem info...")
+    r1 = _cf_get("https://kenkoooo.com/atcoder/resources/merged-problems.json", timeout=120)
+    r1.raise_for_status()
+    info_map = {p["id"]: p for p in r1.json()}
+    print(f"  [AT] Got {len(info_map)} problems")
+
+    print(f"  [AT] Fetching difficulty models...")
+    r2 = _cf_get("https://kenkoooo.com/atcoder/resources/problem-models.json", timeout=120)
+    r2.raise_for_status()
+    models = r2.json()
+    # Build combined map: title from info, difficulty from models (normalized +1000)
+    diff_map = {}
+    for pid, info in info_map.items():
+        diff = models.get(pid, {}).get("difficulty")
+        diff_map[pid] = {
+            "title": info.get("title", pid),
+            "difficulty": round(diff + 1000) if diff is not None else 0,
+        }
+    print(f"  [AT] Built diff_map with {len(diff_map)} entries")
 
     # Step 2: paginate submissions
     submissions = []
@@ -494,6 +529,10 @@ def fetch_luogu(uid, cookie_str=""):
             break
         submissions.extend(records)
         print(f"  [LG] Page {page}: {len(records)} records (total {len(submissions)})")
+        if records and page == 1:
+            r0 = records[0]
+            print(f"  [LG] DEBUG record keys: {list(r0.keys())}")
+            print(f"  [LG] DEBUG record status: {r0.get('status')!r} (type={type(r0.get('status')).__name__})")
         if len(records) < 20:
             break
         page += 1

@@ -147,6 +147,9 @@ class WeeklyReportScheduler:
                 difficulty=r["difficulty"], tags=r["tags"], result=r["result"],
                 submit_time=r["date"], language=r["language"],
             ) for r in raw]
+        elif platform == "nowcoder":
+            from crawler.nowcoder_crawler import NowCoderCrawler
+            subs = NowCoderCrawler(cookie=cookie).fetch_submissions(username)
         else:
             print(f"  [SCHEDULER] 不支持的平台: {platform}")
             return
@@ -191,6 +194,14 @@ class WeeklyReportScheduler:
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, plat, pid, title, diff, tags_json, result, stime, lang, url)
             )
+            # Update tags/difficulty if server has new data
+            if (diff and diff > 0) or (tags_json and tags_json != '[]'):
+                db.execute(
+                    "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
+                    "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=?",
+                    (diff, diff, tags_json, tags_json, user_id, plat, pid, stime, result)
+                )
         db.commit()
         db.execute("PRAGMA foreign_keys=ON")
 

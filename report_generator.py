@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 from collections import defaultdict
+from tag_map import cn_tag
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirement.rm")
 
@@ -139,7 +140,7 @@ def generate_report(
         else:
             level = "数据不足"
 
-        report += f"| {tag} | {stats['total']} | {ac_rate}% | {avg_diff} | {level} |\n"
+        report += f"| {cn_tag(tag)} | {stats['total']} | {ac_rate}% | {avg_diff} | {level} |\n"
 
     # 3. 反思综合
     report += "\n### 3. 反思内容综合\n\n"
@@ -162,7 +163,8 @@ def generate_report(
         report += "**优先强化专题：**\n\n"
         for tag, stats in weak_tags[:5]:
             ac_rate = round(stats["ac"] / stats["total"] * 100, 1)
-            report += f"- **{tag}**：AC 率仅 {ac_rate}%，{stats['total']} 次提交中仅 {stats['ac']} 次通过。建议在对应 OJ 平台按 {tag} 标签筛选中等难度题专项练习。\n"
+            tcn = cn_tag(tag)
+            report += f"- **{tcn}**：AC 率仅 {ac_rate}%，{stats['total']} 次提交中仅 {stats['ac']} 次通过。建议在对应 OJ 平台按 {tcn} 标签筛选中等难度题专项练习。\n"
 
     report += f"\n**每日训练节奏建议：**\n- 保持每日 {max(2, round(unique_ac_count / max(1, active_days)))} 道 AC 题目的节奏\n"
     report += "- 每道题提交前本地测试边界样例，减少 WA 次数\n"
