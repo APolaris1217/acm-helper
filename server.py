@@ -363,6 +363,7 @@ def transform_lg(rec):
     lang = rec.get("language", "")
     if isinstance(lang, int):
         lang = str(lang)
+    rid = rec.get("id", 0)
     return {
         "platform": "luogu",
         "problemId": prob.get("pid", rec.get("pid", "")),
@@ -372,6 +373,8 @@ def transform_lg(rec):
         "result": result,
         "date": date,
         "language": lang,
+        "recordId": rid,
+        "url": f"https://www.luogu.com.cn/record/{rid}" if rid else "",
     }
 
 # ---------------------------------------------------------------------------
@@ -560,7 +563,14 @@ def fetch_luogu(uid, cookie_str=""):
                 cd = dd.get("currentData", {})
                 rec = cd.get("record", cd)
                 if isinstance(rec, dict):
-                    # Collect test case statuses from detail.judgeResult.subtasks
+                    # Priority 1: direct status from record detail page
+                    direct_status = rec.get("status")
+                    if isinstance(direct_status, int) and direct_status not in (0, 1, 12, 14):
+                        r["status"] = direct_status
+                        enriched += 1
+                        continue
+
+                    # Priority 2: test case statuses from detail.judgeResult.subtasks
                     judge = rec.get("detail", {}).get("judgeResult", {})
                     subtasks = judge.get("subtasks", [])
                     tc_statuses = set()

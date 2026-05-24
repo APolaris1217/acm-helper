@@ -81,8 +81,9 @@ def init_db():
     # Migration: add 'result' to UNIQUE constraint (fixes same-day multi-submission dedup bug)
     cur = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='submissions'")
     row = cur.fetchone()
-    if row and 'result' not in row['sql'].split('UNIQUE')[1] if 'UNIQUE' in row['sql'] else False:
-        print("  [DB] 迁移 submissions 表 UNIQUE 约束（加入 result 列）...")
+    old_sql = row['sql'] if row else ''
+    if 'record_id' not in old_sql:
+        print("  [DB] 迁移 submissions 表：添加 record_id 列 + 修正 UNIQUE 约束...")
         db.executescript("""
             CREATE TABLE IF NOT EXISTS submissions_new (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,15 +98,19 @@ def init_db():
                 language      TEXT DEFAULT '',
                 code          TEXT DEFAULT '',
                 url           TEXT DEFAULT '',
+                record_id     TEXT DEFAULT '',
                 created_at    TEXT DEFAULT (datetime('now')),
-                UNIQUE(user_id, platform, problem_id, submit_time, result)
+                UNIQUE(user_id, platform, problem_id, submit_time, result, language)
             );
-            INSERT OR IGNORE INTO submissions_new SELECT * FROM submissions;
+            INSERT OR IGNORE INTO submissions_new (id, user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, code, url, record_id, created_at)
+                SELECT id, user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, code, url, '', created_at FROM submissions;
             DROP TABLE submissions;
             ALTER TABLE submissions_new RENAME TO submissions;
             CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
             CREATE INDEX IF NOT EXISTS idx_submissions_result ON submissions(user_id, result);
             CREATE INDEX IF NOT EXISTS idx_submissions_time ON submissions(user_id, submit_time);
         """)
+        db.commit()
+        print("  [DB] 迁移完成")
     db.commit()
     print(f"  [DB] 数据库已初始化: {DB_PATH}")

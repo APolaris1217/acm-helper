@@ -34,7 +34,14 @@ class CodeforcesCrawler(BaseCrawler):
         for item in data["result"]:
             problem = item.get("problem", {})
             verdict = item.get("verdict", "?")
-            result = "AC" if verdict == "OK" else verdict
+            CF_VERDICT_MAP = {
+                "OK": "AC", "WRONG_ANSWER": "WA", "TIME_LIMIT_EXCEEDED": "TLE",
+                "RUNTIME_ERROR": "RE", "COMPILATION_ERROR": "CE",
+                "MEMORY_LIMIT_EXCEEDED": "MLE", "PRESENTATION_ERROR": "WA",
+                "IDLENESS_LIMIT_EXCEEDED": "TLE",
+                "SKIPPED": "unsolved", "CHALLENGED": "unsolved",
+            }
+            result = CF_VERDICT_MAP.get(verdict, verdict)
 
             sub = Submission(
                 platform="codeforces",

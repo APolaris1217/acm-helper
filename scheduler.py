@@ -146,6 +146,7 @@ class WeeklyReportScheduler:
                 platform=r["platform"], problem_id=r["problemId"], title=r["name"],
                 difficulty=r["difficulty"], tags=r["tags"], result=r["result"],
                 submit_time=r["date"], language=r["language"],
+                url=r.get("url", ""),
             ) for r in raw]
         elif platform == "nowcoder":
             from crawler.nowcoder_crawler import NowCoderCrawler
