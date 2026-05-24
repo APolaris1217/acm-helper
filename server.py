@@ -16,8 +16,12 @@ import sys
 import io
 from datetime import datetime, timezone
 
-# Analysis engine
+# Analysis engine (legacy)
 from analyzer import analyze as analyze_submissions
+
+# New engine: strategy-based weakness detection + behavior metrics + structured report
+from engine.report_builder import ReportBuilder
+from engine.config import AnalysisConfig
 
 # --- New: crawler & db modules ---
 import threading
@@ -785,6 +789,70 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "message": task.message,
                     "error": task.error,
                 })
+
+            # ---- V2.1 API: 新策略引擎分析 (strategy-based, must be before /api/v2/analysis/) ----
+
+            elif path.startswith("/api/v2/analysis-v2/") and self.command == "GET":
+                parts = path.split("/")
+                if len(parts) < 6:
+                    self._send_error("Invalid path, use /api/v2/analysis-v2/{platform}/{username}", 400)
+                    return
+                platform = parts[4]
+                username = parts[5]
+
+                db = get_db()
+                user_row = db.execute(
+                    "SELECT id FROM users WHERE platform=? AND username=?",
+                    (platform, username)
+                ).fetchone()
+
+                if not user_row:
+                    self._send_error(f"未找到用户: {platform}/{username}，请先爬取数据", 404)
+                    return
+
+                user_id = user_row["id"]
+                rows = db.execute(
+                    "SELECT * FROM submissions WHERE user_id=? AND platform=?",
+                    (user_id, platform)
+                ).fetchall()
+
+                import json as _json
+                subs = []
+                for r in rows:
+                    subs.append({
+                        "platform": r["platform"],
+                        "problemId": r["problem_id"],
+                        "name": r["title"],
+                        "difficulty": r["difficulty"],
+                        "tags": _json.loads(r["tags"]) if r["tags"] else [],
+                        "result": r["result"],
+                        "date": (r["submit_time"] or "")[:10],
+                        "language": r["language"],
+                    })
+
+                if not subs:
+                    self._send_json({
+                        "platform": platform,
+                        "username": username,
+                        "error": "无提交数据",
+                        "summary": {},
+                        "metrics": {},
+                        "weaknesses": [],
+                        "recommendations": [],
+                    })
+                    return
+
+                try:
+                    config = AnalysisConfig()
+                    builder = ReportBuilder()
+                    report = builder.build(subs, config)
+                    report["platform"] = platform
+                    report["username"] = username
+                    self._send_json(report)
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    self._send_error(str(e), 500)
 
             elif path.startswith("/api/v2/analysis/") and self.command == "GET":
                 # path: /api/v2/analysis/{platform}/{username}

@@ -75,7 +75,11 @@ def send_report(report_markdown: str, subject: str = "") -> bool:
     msg.attach(html_part)
 
     try:
-        server = smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"], timeout=30)
+        # 绕过本地代理（HTTP_PROXY 会干扰 SMTP 连接）
+        os.environ['NO_PROXY'] = '*'
+        os.environ['no_proxy'] = '*'
+        # 指定 ASCII hostname，避免 Windows 中文主机名导致 SMTP EHLO 编码错误
+        server = smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"], local_hostname="localhost", timeout=30)
         server.starttls()
         server.login(cfg["sender_email"], cfg["sender_password"])
         server.sendmail(cfg["sender_email"], [cfg["receiver_email"]], msg.as_string())

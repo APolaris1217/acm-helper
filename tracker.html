@@ -161,6 +161,40 @@ tr:hover td { background:#fafbff; }
 .diff-modal .close-btn:hover { color:#333; }
 .diff-helper { display:inline-block; width:16px; height:16px; border-radius:50%; background:#ccc; color:#fff; font-size:11px; text-align:center; line-height:16px; cursor:pointer; margin-left:4px; font-weight:700; }
 .diff-helper:hover { background:#667eea; }
+
+/* New engine analysis report */
+.rules-box { background:#f0f4ff; border:1px solid #d0dbff; border-radius:8px; padding:14px 18px; margin-bottom:12px; }
+.rules-box summary { font-size:14px; font-weight:600; color:#445599; cursor:pointer; user-select:none; }
+.rules-box summary:hover { color:#223366; }
+.rule-item { margin:10px 0 12px 16px; font-size:12px; color:#555; line-height:1.6; }
+.rule-item .rule-name { font-weight:700; color:#333; font-size:13px; }
+.rule-item .rule-formula { background:#e8ecf4; padding:2px 6px; border-radius:3px; font-family:monospace; font-size:11px; }
+.rule-item .rule-threshold { color:#e74c3c; font-weight:600; }
+
+.engine-summary { background:linear-gradient(135deg,#f0f4ff,#faf5ff); border-radius:8px; padding:14px 18px; margin-bottom:12px; font-size:13px; color:#444; line-height:1.7; }
+.engine-summary strong { color:#667eea; }
+.engine-summary .highlight-good { color:#27ae60; font-weight:600; }
+.engine-summary .highlight-bad { color:#e74c3c; font-weight:600; }
+
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-bottom:16px; }
+.metric-card { background:#fff; border-radius:8px; padding:12px 16px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.06); border-top:3px solid #667eea; }
+.metric-card .metric-value { font-size:22px; font-weight:700; color:#333; }
+.metric-card .metric-label { font-size:11px; color:#999; margin-top:4px; }
+
+.weakness-card { background:#fff; border-radius:8px; padding:14px 18px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,.05); border-left:4px solid #e74c3c; }
+.weakness-card .w-tag { font-size:15px; font-weight:700; color:#333; }
+.weakness-card .w-rules { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+.weakness-card .w-rule-badge { display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.rule-badge-pass { background:#fee; color:#e74c3c; }
+.rule-badge-eff { background:#fff3e0; color:#e65100; }
+.rule-badge-trend { background:#fce4ec; color:#c62828; }
+.weakness-card .w-data { margin-top:8px; font-size:11px; color:#888; line-height:1.6; }
+
+.rec-card { padding:10px 14px; margin-bottom:6px; border-radius:6px; font-size:12px; line-height:1.6; }
+.rec-card.high { background:#fff5f5; border-left:3px solid #e74c3c; }
+.rec-card.medium { background:#fffbf0; border-left:3px solid #f39c12; }
+.rec-card.info { background:#f5f7fa; border-left:3px solid #3498db; }
+.rec-card .rec-tag { font-weight:700; font-size:13px; }
 </style>
 </head>
 <body>
@@ -317,6 +351,35 @@ tr:hover td { background:#fafbff; }
       <button class="btn btn-primary" id="btn-analyze">生成行为分析报告</button>
       <span style="font-size:12px;color:#999;margin-left:8px;" id="analyze-status"></span>
       <div id="analyze-report" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- 策略引擎分析 -->
+    <div class="chart-card">
+      <h4>策略引擎分析（新版）</h4>
+      <p style="font-size:12px;color:#999;margin-bottom:10px;">基于三套独立规则的薄弱点判定 + 行为指标计算 + 改进建议</p>
+      <details class="rules-box">
+        <summary>判定规则说明</summary>
+        <div class="rule-item">
+          <span class="rule-name">规则1：通过率策略 (Pass Rate)</span><br>
+          公式: <span class="rule-formula">通过率 = 该标签下AC的题目数 / 尝试过的题目总数</span><br>
+          支持难度加权（基础题错误扣分更重）。阈值 <span class="rule-threshold">α = 0.3</span>，通过率 &lt; 30% 判定为薄弱。<br>
+          通过率为 0 的标签（从未 AC）不参与薄弱判定，单独归为"尚未掌握"。
+        </div>
+        <div class="rule-item">
+          <span class="rule-name">规则2：时间与效率策略 (Efficiency)</span><br>
+          条件A: <span class="rule-formula">该标签平均尝试次数 &gt; γ</span>（<span class="rule-threshold">γ = 3 次</span>）<br>
+          条件B: <span class="rule-formula">该标签平均解题耗时 &gt; β × 全站同类题目耗时中位数</span>（<span class="rule-threshold">β = 1.5</span>）<br>
+          满足任一条件即判定为效率低下（薄弱）。
+        </div>
+        <div class="rule-item">
+          <span class="rule-name">规则3：学习趋势策略 (Learning Trend)</span><br>
+          将历史提交按时间均分为前后半区，计算 <span class="rule-formula">后半区正确率 / 前半区正确率</span><br>
+          比值 &lt; <span class="rule-threshold">0.8</span>（后期显著下降）或 周正确率线性回归斜率 &lt; <span class="rule-threshold">0.05</span>（几乎无进步），判定为薄弱。
+        </div>
+      </details>
+      <button class="btn btn-primary" id="btn-engine-analyze" style="margin-top:10px;">运行策略引擎分析</button>
+      <span style="font-size:12px;color:#999;margin-left:8px;" id="engine-analyze-status"></span>
+      <div id="engine-report" style="margin-top:14px;"></div>
     </div>
   </div>
 
@@ -1259,6 +1322,164 @@ function renderBehaviorReport(data) {
 }
 
 document.getElementById('btn-analyze').addEventListener('click', runBehaviorAnalysis);
+
+// ==================== NEW STRATEGY ENGINE ANALYSIS ====================
+async function runEngineAnalysis() {
+  const status = document.getElementById('engine-analyze-status');
+  const container = document.getElementById('engine-report');
+  status.textContent = '分析中...';
+  container.innerHTML = '';
+
+  try {
+    // Get bound accounts to analyze
+    const resp = await fetch(`${SERVER}/api/accounts/bind`);
+    const data = await resp.json();
+    const accounts = data.accounts || {};
+    const platforms = Object.keys(accounts);
+
+    if (platforms.length === 0) {
+      status.textContent = '无已绑定账户，请先在「账户绑定」页面绑定';
+      status.className = 'err';
+      return;
+    }
+
+    let allHtml = '';
+    for (const platform of platforms) {
+      const username = accounts[platform].username;
+      if (!username) continue;
+      try {
+        const aResp = await fetch(`${SERVER}/api/v2/analysis-v2/${platform}/${encodeURIComponent(username)}`);
+        const report = await aResp.json();
+        if (report.error) {
+          allHtml += `<div style="color:#999;margin-bottom:8px;">${PLATFORM_NAMES[platform] || platform} (${username}): ${report.error}</div>`;
+        } else {
+          allHtml += renderEngineReport(report, platform, username);
+        }
+      } catch (e) {
+        allHtml += `<div style="color:#e74c3c;margin-bottom:8px;">${PLATFORM_NAMES[platform] || platform} (${username}): 请求失败 - ${e.message}</div>`;
+      }
+    }
+
+    container.innerHTML = allHtml || '<div class="nodata">暂无分析结果</div>';
+    status.textContent = '分析完成';
+    status.className = 'ok';
+  } catch (e) {
+    status.textContent = '分析失败: ' + e.message;
+    status.className = 'err';
+  }
+}
+
+function renderEngineReport(report, platform, username) {
+  const m = report.metrics || {};
+  const weaknesses = report.weaknesses || [];
+  const strengths = report.strengths || [];
+  const unstarted = report.unstarted_tags || [];
+  const recs = report.recommendations || [];
+  const summary = report.summary || {};
+  const pname = PLATFORM_NAMES[platform] || platform;
+
+  let html = `<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #eee;">`;
+  html += `<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:12px;">${pname} · ${username}</div>`;
+
+  // Summary
+  if (summary.overview) {
+    html += `<div class="engine-summary">${summary.overview}</div>`;
+    html += `<div style="font-size:12px;color:#666;margin-bottom:12px;">`;
+    html += `<span style="color:#27ae60;font-weight:600;">${summary.strengths_summary || ''}</span>`;
+    html += ` &nbsp;|&nbsp; <span style="color:#e74c3c;font-weight:600;">${summary.weaknesses_summary || ''}</span>`;
+    html += `</div>`;
+  }
+
+  // Metrics grid
+  html += `<div class="metric-grid">`;
+  const metrics = [
+    {k:'pass_rate', label:'总体通过率', fmt:v => (v*100).toFixed(1)+'%'},
+    {k:'avg_attempts', label:'平均尝试次数', fmt:v => v.toFixed(1)+'次'},
+    {k:'give_up_rate', label:'放弃率', fmt:v => (v*100).toFixed(1)+'%'},
+    {k:'regression_rate', label:'回归率', fmt:v => (v*100).toFixed(1)+'%'},
+    {k:'one_shot_ac_rate', label:'一发入魂', fmt:v => (v*100).toFixed(1)+'%'},
+    {k:'tag_coverage', label:'标签覆盖度', fmt:v => (v*100).toFixed(1)+'%'},
+    {k:'result_distribution', label:'AC/总提交', fmt:v => `${m.ac_problems||0}/${m.total_submissions||0}`},
+  ];
+  metrics.forEach(met => {
+    const val = m[met.k] !== undefined ? met.fmt(m[met.k]) : '-';
+    html += `<div class="metric-card"><div class="metric-value">${val}</div><div class="metric-label">${met.label}</div></div>`;
+  });
+  html += `</div>`;
+
+  // Weaknesses
+  if (weaknesses.length > 0) {
+    html += `<h5 style="font-size:14px;color:#e74c3c;margin-bottom:8px;">薄弱知识点（${weaknesses.length}个）</h5>`;
+    weaknesses.forEach(w => {
+      html += `<div class="weakness-card">`;
+      html += `<div class="w-tag">${w.tag}</div>`;
+
+      // Rule badges
+      html += `<div class="w-rules">`;
+      const ruleLabels = {pass_rate:'通过率低', efficiency:'效率低', trend:'趋势下降'};
+      w.triggered_rules.forEach(r => {
+        const cls = r === 'pass_rate' ? 'rule-badge-pass' : r === 'efficiency' ? 'rule-badge-eff' : 'rule-badge-trend';
+        html += `<span class="w-rule-badge ${cls}">${ruleLabels[r] || r}</span>`;
+      });
+      html += `</div>`;
+
+      // Data evidence
+      html += `<div class="w-data">`;
+      if (w.pass_rate_detail) {
+        const d = w.pass_rate_detail;
+        html += `通过率: <b>${(d.rate*100).toFixed(1)}%</b> (${d.ac}/${d.total}) &lt; 阈值 ${(d.threshold*100).toFixed(0)}% &nbsp;`;
+      }
+      if (w.efficiency_detail) {
+        const d = w.efficiency_detail;
+        html += `平均尝试: <b>${d.avg_attempts}次</b> (阈值 ${d.attempts_threshold}次) &nbsp;`;
+        if (d.avg_time_minutes > 0) html += `平均耗时: <b>${d.avg_time_minutes.toFixed(0)}分钟</b> (阈值 ${d.time_threshold.toFixed(0)}分钟) &nbsp;`;
+      }
+      if (w.trend_detail) {
+        const d = w.trend_detail;
+        if (d.ratio !== null && d.ratio !== undefined) html += `前后区正确率比: <b>${d.ratio.toFixed(2)}</b> &lt; ${d.ratio_threshold} &nbsp;`;
+        if (d.slope !== null && d.slope !== undefined) html += `学习斜率: <b>${d.slope.toFixed(4)}</b> &lt; ${d.slope_threshold} &nbsp;`;
+      }
+      html += `</div>`;
+      html += `</div>`;
+    });
+  }
+
+  // Strengths
+  if (strengths.length > 0) {
+    html += `<h5 style="font-size:14px;color:#27ae60;margin:14px 0 8px;">优势标签（Top ${Math.min(3,strengths.length)}）</h5>`;
+    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">`;
+    strengths.slice(0,5).forEach(s => {
+      html += `<span style="background:#eafaf1;color:#27ae60;padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;">${s.tag} ${(s.rate*100).toFixed(0)}%</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // Unstarted tags
+  if (unstarted.length > 0) {
+    html += `<h5 style="font-size:14px;color:#3498db;margin:14px 0 8px;">尚未掌握（通过率=0，不参与薄弱判定）</h5>`;
+    html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">`;
+    unstarted.forEach(u => {
+      html += `<span style="background:#eef2fb;color:#3498db;padding:3px 8px;border-radius:4px;font-size:11px;">${u.tag || u.tag_raw} (${u.total}题)</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // Recommendations
+  if (recs.length > 0) {
+    html += `<h5 style="font-size:14px;color:#444;margin:14px 0 8px;">改进建议</h5>`;
+    recs.slice(0, 8).forEach(r => {
+      html += `<div class="rec-card ${r.priority}">`;
+      html += `<div class="rec-tag">${r.tag} <span style="font-size:10px;color:#999;">[${r.priority === 'high' ? '优先' : r.priority === 'medium' ? '关注' : '留意'}]</span></div>`;
+      (r.advice || []).forEach(a => { html += `<div style="margin-top:4px;">→ ${a}</div>`; });
+      html += `</div>`;
+    });
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+document.getElementById('btn-engine-analyze').addEventListener('click', runEngineAnalysis);
 
 // ==================== INIT ====================
 function init() {
