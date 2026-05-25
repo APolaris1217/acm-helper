@@ -362,7 +362,15 @@ def transform_lg(rec):
         tags = [str(t) for t in tags]
     lang = rec.get("language", "")
     if isinstance(lang, int):
-        lang = str(lang)
+        LG_LANG = {
+            0:"?",1:"C",2:"C++98",3:"C++11",4:"C++14",5:"C++17",
+            6:"C++20",7:"C++23",8:"C#",9:"Python 3",10:"Java 8",
+            11:"Java 11",12:"C++14",14:"Ruby",15:"Rust",16:"Go",
+            17:"Kotlin",18:"Haskell",19:"JavaScript",20:"TypeScript",
+            21:"Scala",22:"C++17",23:"C++20",24:"C++23",
+            25:"Python 3",27:"Python 3",28:"C++17",
+        }
+        lang = LG_LANG.get(lang, f"ID:{lang}")
     rid = rec.get("id", 0)
     return {
         "platform": "luogu",

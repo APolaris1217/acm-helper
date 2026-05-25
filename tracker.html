@@ -527,6 +527,28 @@ const TAG_CN = {
   'graph matchings':'图匹配',
 };
 function cnTag(t) { return TAG_CN[(t||'').toLowerCase()] || t; }
+function normalizeLanguage(lang) {
+  if (!lang) return '-';
+  // Luogu numeric IDs → readable names
+  const LG_LANG = {
+    0:'?',1:'C',2:'C++98',3:'C++11',4:'C++14',5:'C++17',
+    6:'C++20',7:'C++23',8:'C#',9:'Python 3',10:'Java 8',
+    11:'Java 11',12:'C++14',14:'Ruby',15:'Rust',16:'Go',
+    17:'Kotlin',18:'Haskell',19:'JavaScript',20:'TypeScript',
+    21:'Scala',22:'C++17',23:'C++20',24:'C++23',
+    25:'Python 3',27:'Python 3',28:'C++17',
+  };
+  const s = String(lang).trim();
+  if (/^\d+$/.test(s)) { return LG_LANG[parseInt(s)] || ('ID:'+s); }
+  // Unify C++ variants to just "C++"
+  if (/^(C\+\+|GNU C\+\+|G\+\+)/i.test(s)) return 'C++';
+  // Shorten verbose names
+  if (/^GNU C/i.test(s)) return 'C';
+  if (/^Python\s*3/i.test(s)) return 'Python 3';
+  if (/^Python\s*2/i.test(s)) return 'Python 2';
+  if (/^Java\s*(\d+)/i.test(s)) return s.match(/^Java\s*\d+/i)[0];
+  return s;
+}
 const PLATFORM_NAMES = { luogu:'洛谷', codeforces:'Codeforces', atcoder:'AtCoder', nowcoder:'牛客', other:'其他' };
 const RESULT_NAMES = { AC:'AC', WA:'WA', TLE:'TLE', RE:'RE', CE:'CE', MLE:'MLE', partial:'partial', unsolved:'unsolved' };
 const RESULT_NORMALIZE = {
@@ -838,7 +860,7 @@ function renderTable() {
         <td>${[...new Set((p.tags || []).filter(t => t !== '*special').map(t => cnTag(t)))].map(cn => `<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">${cn}</span>`).join(' ')}</td>
         <td><span class="result-badge result-${normalizeResult(p.result)}">${RESULT_NAMES[normalizeResult(p.result)] || normalizeResult(p.result)}</span></td>
         <td>${p.date}</td>
-        <td>${p.language || p.timeSpent ? (p.language || p.timeSpent+'分') : '-'}</td>
+        <td>${p.language ? normalizeLanguage(p.language) : (p.timeSpent ? p.timeSpent+'分' : '-')}</td>
         <td>
           <button class="btn btn-outline btn-sm" onclick="editProblem('${p.id}')">编辑</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProblem('${p.id}')">删除</button>
