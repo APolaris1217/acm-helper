@@ -78,12 +78,12 @@ def init_db():
         INSERT OR IGNORE INTO deepseek_config (id) VALUES (1);
     """)
 
-    # Migration: add 'result' to UNIQUE constraint (fixes same-day multi-submission dedup bug)
+    # Migration 2: fix UNIQUE to use record_id for OJ-specific dedup
     cur = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='submissions'")
     row = cur.fetchone()
     old_sql = row['sql'] if row else ''
-    if 'record_id' not in old_sql:
-        print("  [DB] 迁移 submissions 表：添加 record_id 列 + 修正 UNIQUE 约束...")
+    if 'record_id' not in old_sql or 'language, record_id' not in old_sql:
+        print("  [DB] 迁移 submissions 表：UNIQUE 约束加入 record_id...")
         db.executescript("""
             CREATE TABLE IF NOT EXISTS submissions_new (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,10 +100,10 @@ def init_db():
                 url           TEXT DEFAULT '',
                 record_id     TEXT DEFAULT '',
                 created_at    TEXT DEFAULT (datetime('now')),
-                UNIQUE(user_id, platform, problem_id, submit_time, result, language)
+                UNIQUE(user_id, platform, problem_id, submit_time, result, language, record_id)
             );
             INSERT OR IGNORE INTO submissions_new (id, user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, code, url, record_id, created_at)
-                SELECT id, user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, code, url, '', created_at FROM submissions;
+                SELECT id, user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, code, url, COALESCE(record_id, ''), created_at FROM submissions;
             DROP TABLE submissions;
             ALTER TABLE submissions_new RENAME TO submissions;
             CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions(user_id);
