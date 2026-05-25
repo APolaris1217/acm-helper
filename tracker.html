@@ -512,7 +512,7 @@ const SERVER = 'http://localhost:8765';
 
 // Tag name Chinese mapping
 const TAG_CN = {
-  'dp':'dp','greedy':'贪心','math':'数学','graphs':'图论','graph':'图论',
+  'dp':'动态规划','greedy':'贪心','math':'数学','graphs':'图论','graph':'图论',
   'data structures':'数据结构','implementation':'模拟','constructive algorithms':'构造',
   'brute force':'暴力枚举','sortings':'排序','strings':'字符串','binary search':'二分',
   'number theory':'数学','combinatorics':'组合数学','geometry':'计算几何','trees':'树',
@@ -539,7 +539,7 @@ const RESULT_NORMALIZE = {
   'REJECTED':'unsolved','OLE':'RE','IE':'RE',
 };
 function normalizeResult(r) { return RESULT_NORMALIZE[r] || r; }
-const PRESET_TAGS = ['dp','DFS','BFS','STL','FFT','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','计算几何','博弈论','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路','暴力枚举','动态规划','哈希','分治','概率'];
+const PRESET_TAGS = ['动态规划','DFS','BFS','STL','FFT','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','计算几何','博弈论','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路','暴力枚举','哈希','分治','概率'];
 
 let problems = [];
 let currentTagSelection = [];
@@ -835,7 +835,7 @@ function renderTable() {
         <td>${p.problemId || '-'}</td>
         <td>${p.name || '-'}</td>
         <td>${p.difficulty ? `<span class="diff-span ${diffCls}">${p.difficulty}</span>` : '-'}</td>
-        <td>${(p.tags || []).filter(t => t !== '*special').map(t => `<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">${cnTag(t)}</span>`).join(' ')}</td>
+        <td>${[...new Set((p.tags || []).filter(t => t !== '*special').map(t => cnTag(t)))].map(cn => `<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">${cn}</span>`).join(' ')}</td>
         <td><span class="result-badge result-${normalizeResult(p.result)}">${RESULT_NAMES[normalizeResult(p.result)] || normalizeResult(p.result)}</span></td>
         <td>${p.date}</td>
         <td>${p.language || p.timeSpent ? (p.language || p.timeSpent+'分') : '-'}</td>

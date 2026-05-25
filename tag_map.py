@@ -1,6 +1,6 @@
 """Shared algorithm tag → Chinese display name mapping."""
 TAG_CN = {
-    "dp": "dp", "greedy": "贪心", "math": "数学", "graphs": "图论",
+    "dp": "动态规划", "greedy": "贪心", "math": "数学", "graphs": "图论",
     "graph": "图论", "data structures": "数据结构", "implementation": "模拟",
     "constructive algorithms": "构造", "brute force": "暴力枚举",
     "sortings": "排序", "strings": "字符串", "binary search": "二分",
