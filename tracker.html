@@ -7,2012 +7,591 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 /* ============================================================
-   TECH DARK THEME — Cyan/Blue Accent, Monospace, Card Glow
+   CLEAN LIGHT THEME
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-deep: #080c14;
-  --bg-surface: #0d1321;
-  --bg-card: #111827;
-  --bg-elevated: #162032;
-  --border: #1e3048;
-  --border-glow: #00c6ff33;
-  --text-primary: #d6e4f0;
-  --text-secondary: #7b93ad;
-  --text-muted: #4a6078;
-  --cyan: #00c6ff;
-  --cyan-dim: #0099cc;
-  --cyan-glow: rgba(0,198,255,0.18);
-  --blue: #2979ff;
-  --green: #00e676;
-  --red: #ff3d57;
-  --orange: #ff9100;
-  --yellow: #ffd740;
-  --purple: #b388ff;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  --bg-root: #f3f4f6;
+  --bg-white: #ffffff;
+  --bg-sidebar: #f8fafc;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --accent: #0d9488;
+  --accent-light: #f0fdfa;
+  --accent-hover: #0f766e;
+  --green: #16a34a;
+  --green-bg: #f0fdf4;
+  --green-border: #bbf7d0;
+  --red: #dc2626;
+  --red-bg: #fef2f2;
+  --red-border: #fecaca;
+  --orange: #ea580c;
+  --orange-bg: #fff7ed;
+  --yellow: #ca8a04;
+  --yellow-bg: #fefce8;
+  --purple: #7c3aed;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --sidebar-w: 220px;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
+
+html { overflow-x: hidden; }
 body {
-  font-family: var(--font-mono);
-  background: var(--bg-deep);
+  font-family: var(--font-sans);
+  background: var(--bg-root);
   color: var(--text-primary);
-  min-height:100vh;
-  letter-spacing: -0.02em;
-  background-image:
-    radial-gradient(ellipse at 20% 10%, rgba(0,198,255,0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 90%, rgba(41,121,255,0.03) 0%, transparent 60%);
+  min-height: 100vh;
+  display: flex;
 }
 
-/* ---- Header ---- */
-.header {
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  padding: 28px 30px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-w); min-height: 100vh; background: var(--bg-white);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 20; padding: 24px 0 16px;
 }
-.header::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0,198,255,0.06) 0%, transparent 100%);
-  pointer-events: none;
+.sidebar-brand { padding: 0 20px 20px; border-bottom: 1px solid var(--border-light); margin-bottom: 8px; }
+.sidebar-brand h2 { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
+.sidebar-brand span { font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-radius: var(--radius-sm); font-size: 14px; font-weight: 500;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+  border: none; background: none; width: 100%; text-align: left;
+  font-family: var(--font-sans); letter-spacing: -0.01em;
 }
-.header::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 10%; right: 10%; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
-}
-.header h1 {
-  font-size: 22px; font-weight: 700; letter-spacing: 0.06em;
-  color: var(--text-primary);
-  text-shadow: 0 0 20px var(--cyan-glow);
-}
-.header p { font-size: 12px; color: var(--text-secondary); margin-top: 4px; letter-spacing: 0.04em; }
+.nav-item:hover { background: var(--bg-root); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
 
-/* ---- Tabs ---- */
-.tabs {
-  display:flex; gap:0; background: var(--bg-surface);
-  padding:0 20px; border-bottom: 1px solid var(--border);
-  position:sticky; top:0; z-index:10;
-  backdrop-filter: blur(10px);
+/* ---- Main ---- */
+.main {
+  margin-left: var(--sidebar-w); flex: 1; min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
 }
-.tab {
-  padding: 14px 24px; cursor:pointer;
-  border-bottom: 2px solid transparent;
-  font-size: 13px; font-weight: 500; color: var(--text-muted);
-  transition: all .25s; letter-spacing: 0.03em;
-}
-.tab:hover { color: var(--cyan); text-shadow: 0 0 8px var(--cyan-glow); }
-.tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
-.container { max-width:1120px; margin:20px auto; padding:0 16px; }
-.section { display:none; }
-.section.active { display:block; }
+.container { width: min(100%, 1100px); padding: 28px 24px 20px; }
+.section { display: none; }
+.section.active { display: block; }
 
 /* ---- Cards ---- */
-.form-card, .chart-card, .sync-card, .stat-card, .weak-card, .metric-card, .weakness-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.3), 0 0 0 1px var(--border-glow);
-  transition: border-color .3s, box-shadow .3s;
+.card {
+  background: var(--bg-white); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 20px 24px; margin-bottom: 14px;
 }
-.form-card:hover, .chart-card:hover, .sync-card:hover {
-  border-color: rgba(0,198,255,0.25);
-  box-shadow: 0 0 30px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow);
-}
+.card-header { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.card-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; margin-top: -8px; }
 
-.form-card { padding:20px 24px; margin-bottom:16px; }
-.form-card h3, .chart-card h4 { font-size: 14px; font-weight: 600; color: var(--cyan); margin-bottom: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
-.form-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
-.form-group { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
-.form-group label { font-size:11px; color: var(--text-muted); font-weight:500; letter-spacing:0.04em; text-transform: uppercase; }
+/* ---- Forms ---- */
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.form-group label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
 .form-group input, .form-group select {
-  padding:8px 10px; background: var(--bg-deep); border:1px solid var(--border);
-  border-radius:6px; font-size:13px; font-family:var(--font-mono); color:var(--text-primary);
-  outline:none; transition:border .2s;
+  padding: 8px 11px; background: var(--bg-white); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font-sans);
+  color: var(--text-primary); outline: none; transition: border 0.15s, box-shadow 0.15s;
 }
-.form-group input:focus, .form-group select:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan-glow);
-}
-.form-group.full { flex:100%; min-width:100%; }
+.form-group input:focus, .form-group select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,0.08); }
+.form-group input::placeholder { color: var(--text-muted); }
+.form-group.full { flex: 100%; min-width: 100%; }
 
-/* ---- Tag chips ---- */
-.tag-select { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+/* ---- Tags ---- */
+.tag-select { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tag-chip {
-  padding:4px 10px; border-radius:14px; font-size:11px; cursor:pointer;
-  border:1px solid var(--border); background: var(--bg-deep); color: var(--text-secondary);
-  white-space:nowrap; transition:all .2s;
+  padding: 4px 11px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-white);
+  color: var(--text-secondary); white-space: nowrap; transition: all 0.15s; font-family: var(--font-sans);
 }
-.tag-chip:hover { border-color: var(--cyan); color: var(--cyan); }
-.tag-chip.selected {
-  background: rgba(0,198,255,0.15); color: var(--cyan);
-  border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-glow);
-}
-.tag-input {
-  border:1px solid var(--border); border-radius:6px; padding:6px 10px;
-  font-size:12px; font-family:var(--font-mono); background:var(--bg-deep);
-  color:var(--text-primary); outline:none; width:120px;
-}
-.tag-input:focus { border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-glow); }
+.tag-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.tag-chip.selected { background: var(--accent-light); color: var(--accent); border-color: var(--accent); font-weight: 500; }
+.tag-input { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12px; font-family: var(--font-sans); background: var(--bg-white); color: var(--text-primary); outline: none; width: 150px; }
+.tag-input:focus { border-color: var(--accent); }
 
 /* ---- Buttons ---- */
 .btn {
-  padding:8px 18px; border-radius:6px; border:1px solid transparent;
-  font-size:12px; cursor:pointer; font-weight:600; font-family:var(--font-mono);
-  letter-spacing:0.03em; transition:all .25s; text-transform: uppercase;
+  padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  font-size: 13px; cursor: pointer; font-weight: 500; font-family: var(--font-sans);
+  transition: all 0.15s; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 6px;
 }
-.btn-primary {
-  background: linear-gradient(135deg, var(--cyan-dim), var(--blue));
-  color: #fff; border-color: var(--cyan);
-  box-shadow: 0 0 14px rgba(0,198,255,0.2);
-}
-.btn-primary:hover {
-  box-shadow: 0 0 24px rgba(0,198,255,0.35);
-  transform: translateY(-1px);
-}
-.btn-danger { background: rgba(255,61,87,0.15); color: var(--red); border-color: rgba(255,61,87,0.3); }
-.btn-danger:hover { background: rgba(255,61,87,0.25); box-shadow: 0 0 14px rgba(255,61,87,0.2); }
-.btn-outline {
-  background: transparent; border:1px solid var(--border); color: var(--text-secondary);
-}
-.btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
-.btn-sm { padding:4px 10px; font-size:10px; }
-.btn-group { display:flex; gap:8px; margin-top:8px; }
-
-/* ---- Sync card ---- */
-.sync-card { padding:18px 24px; margin-bottom:16px; background: var(--bg-surface); }
-.sync-card h3 { font-size:14px; margin-bottom:4px; color: var(--text-primary); text-transform: none; }
-.sync-card .sync-subtitle { font-size:11px; color: var(--text-muted); margin-bottom:12px; }
-.sync-inputs { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
-.sync-inputs .form-group { min-width:160px; }
-.sync-inputs .form-group label { display:flex; align-items:center; gap:4px; }
-.platform-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
-.platform-dot.cf { background: var(--orange); }
-.platform-dot.at { background: var(--cyan); }
-.platform-dot.lg { background: var(--green); }
-.sync-status { font-size:11px; margin-top:8px; min-height:18px; color: var(--text-secondary); }
-.sync-status .ok { color: var(--green); }
-.sync-status .err { color: var(--red); }
-.sync-status .pending { color: var(--orange); }
-.sync-note { font-size:10px; color: var(--text-muted); margin-top:6px; line-height:1.6; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.btn-danger:hover { background: #fee2e2; }
+.btn-outline { background: var(--bg-white); border: 1px solid var(--border); color: var(--text-secondary); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-group { display: flex; gap: 8px; margin-top: 8px; }
 
 /* ---- Table ---- */
-.table-wrap {
-  background: var(--bg-card); border-radius:10px;
-  border: 1px solid var(--border); overflow-x:auto;
-  box-shadow: 0 0 20px rgba(0,0,0,0.3);
-}
-table { width:100%; border-collapse:collapse; font-size:12px; font-family: var(--font-mono); }
-th {
-  background: var(--bg-surface); padding:10px 12px; text-align:left;
-  font-weight:600; color: var(--text-secondary); font-size:11px;
-  border-bottom:1px solid var(--border); white-space:nowrap;
-  letter-spacing:0.04em; text-transform: uppercase;
-}
-td { padding:10px 12px; border-bottom:1px solid rgba(30,48,72,0.5); color: var(--text-primary); }
-tr:hover td { background: rgba(0,198,255,0.03); }
-.diff-span { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600; font-family:var(--font-mono); }
-.diff-easy { background: rgba(0,230,118,0.12); color: var(--green); }
-.diff-med { background: rgba(255,215,64,0.12); color: var(--yellow); }
-.diff-hard { background: rgba(255,61,87,0.12); color: var(--red); }
-.result-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; font-family:var(--font-mono); }
-.result-AC { background: rgba(0,230,118,0.15); color: var(--green); }
-.result-WA { background: rgba(255,61,87,0.15); color: var(--red); }
-.result-TLE, .result-MLE, .result-CE { background: rgba(255,215,64,0.12); color: var(--yellow); }
-.result-RE { background: rgba(255,145,0,0.15); color: var(--orange); }
-.result-partial, .result-unsolved { background: rgba(74,96,120,0.15); color: var(--text-muted); }
+.table-wrap { background: var(--bg-white); border-radius: var(--radius); border: 1px solid var(--border); overflow-x: auto; box-shadow: var(--shadow-sm); }
+table { min-width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: var(--bg-sidebar); padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 11px; border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); white-space: nowrap; }
+tr:hover td { background: #f8fafc; }
+
+.diff-span { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+.diff-easy { background: var(--green-bg); color: var(--green); }
+.diff-med { background: var(--yellow-bg); color: var(--yellow); }
+.diff-hard { background: var(--red-bg); color: var(--red); }
+.result-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.result-AC { background: var(--green-bg); color: var(--green); }
+.result-WA { background: var(--red-bg); color: var(--red); }
+.result-TLE, .result-MLE, .result-CE { background: var(--yellow-bg); color: var(--yellow); }
+.result-RE { background: var(--orange-bg); color: var(--orange); }
+.result-partial, .result-unsolved { background: #f1f5f9; color: var(--text-muted); }
 
 /* ---- Filter bar ---- */
-.filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
-.filter-bar select, .filter-bar input {
-  padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:11px;
-  font-family:var(--font-mono); outline:none; background: var(--bg-deep); color: var(--text-primary);
-}
-.filter-bar select:focus, .filter-bar input:focus { border-color: var(--cyan); }
-.pagination { display:flex; gap:6px; justify-content:center; padding:12px; }
-.pagination button {
-  padding:6px 12px; border:1px solid var(--border); border-radius:4px;
-  background: var(--bg-card); cursor:pointer; font-size:11px; font-family:var(--font-mono); color: var(--text-secondary);
-}
-.pagination button.active {
-  background: rgba(0,198,255,0.15); color: var(--cyan); border-color: var(--cyan);
-  box-shadow: 0 0 10px var(--cyan-glow);
-}
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.filter-bar select, .filter-bar input { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font-sans); outline: none; background: var(--bg-white); color: var(--text-primary); }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,0.06); }
+
+/* ---- Pagination ---- */
+.pagination { display: flex; gap: 4px; justify-content: center; padding: 14px; flex-wrap: wrap; }
+.pagination button { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-white); cursor: pointer; font-size: 12px; font-family: var(--font-sans); color: var(--text-secondary); transition: all 0.15s; }
+.pagination button:hover { border-color: var(--accent); color: var(--accent); }
+.pagination button.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); font-weight: 600; }
 
 /* ---- Stats ---- */
-.stats-row { display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
-.stat-card { padding:18px 20px; flex:1; min-width:150px; text-align:center; }
-.stat-card .num { font-size:26px; font-weight:700; color: var(--cyan); text-shadow: 0 0 12px var(--cyan-glow); }
-.stat-card .label { font-size:11px; color: var(--text-muted); margin-top:4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.stats-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.stat-card { background: var(--bg-white); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; flex: 1; min-width: 150px; text-align: center; box-shadow: var(--shadow-sm); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--accent); }
+.stat-card .label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
 
-.chart-card { padding:18px 20px; margin-bottom:14px; }
-.chart-row { display:flex; gap:14px; flex-wrap:wrap; }
-.chart-row .chart-card { flex:1; min-width:300px; }
+/* ---- Chart row ---- */
+.chart-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.chart-row .card { flex: 1; min-width: 300px; }
 
 /* ---- Heatmap ---- */
-.heatmap { display:flex; gap:3px; flex-wrap:wrap; }
-.heatmap-cell { width:13px; height:13px; border-radius:2px; }
-.heatmap-0 { background: rgba(30,48,72,0.4); }
-.heatmap-1 { background: rgba(0,198,255,0.2); }
-.heatmap-2 { background: rgba(0,198,255,0.4); }
-.heatmap-3 { background: rgba(0,198,255,0.7); }
-.heatmap-4 { background: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow); }
+.heatmap { display: flex; gap: 3px; flex-wrap: wrap; }
+.heatmap-cell { width: 12px; height: 12px; border-radius: 2px; }
+.heatmap-0 { background: #e2e8f0; } .heatmap-1 { background: #99f6e4; }
+.heatmap-2 { background: #5eead4; } .heatmap-3 { background: #14b8a6; }
+.heatmap-4 { background: #0f766e; }
 
-/* ---- Weak card ---- */
-.weak-card {
-  padding:16px 20px; margin-bottom:8px; display:flex; align-items:center; gap:14px;
-  border-left:3px solid var(--red); background: var(--bg-card); border: 1px solid var(--border);
-  border-left: 3px solid var(--red); border-radius: 8px;
-}
-.weak-card .rank { font-size:22px; font-weight:700; color: var(--red); min-width:28px; }
-.weak-card .info { flex:1; }
-.weak-card .info .tag-name { font-size:14px; font-weight:600; color: var(--text-primary); }
-.weak-card .info .detail { font-size:11px; color: var(--text-muted); margin-top:2px; }
-.weak-card .ac-rate { font-size:18px; font-weight:700; color: var(--red); }
-.weak-none { text-align:center; color: var(--text-muted); padding:30px; font-size:13px; }
+/* ---- Weakness bubbles ---- */
+.bubble-row { display: flex; gap: 20px; justify-content: center; align-items: flex-end; flex-wrap: wrap; padding: 10px 0; }
+.bubble { border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; font-weight: 600; cursor: default; animation: popIn 0.4s ease-out both; box-shadow: 0 4px 14px rgba(0,0,0,0.15); transition: transform 0.2s; }
+.bubble:hover { transform: scale(1.08); }
+.bubble-rank { font-size: 12px; opacity: 0.85; font-weight: 700; }
+.bubble-tag { font-size: 13px; margin-top: 2px; }
+.bubble-rate { font-size: 18px; font-weight: 700; margin-top: 2px; }
+@keyframes popIn { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
 
-.nodata { text-align:center; color: var(--text-muted); padding:40px; font-size:12px; }
-.hidden { display:none !important; }
-
-/* ---- Analysis report ---- */
-.report-section { margin-bottom:16px; }
-.report-section h5 { font-size:13px; color:var(--cyan); border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:8px; text-transform: uppercase; letter-spacing:0.05em; }
-.report-summary { font-size:12px; color:var(--text-secondary); background:var(--bg-surface); padding:10px 14px; border-radius:6px; line-height:1.6; border:1px solid var(--border); }
-.report-issue { font-size:11px; color:var(--text-secondary); padding:4px 0 4px 16px; border-left:2px solid var(--red); margin:6px 0; }
-.report-issue.good { border-left-color: var(--green); }
-.report-rank-table { width:100%; border-collapse:collapse; font-size:11px; }
-.report-rank-table th { background:var(--bg-surface); padding:8px; text-align:left; font-size:10px; color:var(--text-muted); }
-.report-rank-table td { padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-primary); }
-.report-rank-table .bar-wrap { background:var(--bg-deep); border-radius:3px; height:6px; min-width:60px; }
-.report-rank-table .bar-fill { background:var(--red); height:6px; border-radius:3px; }
-.report-rank-table .suggestion { font-size:10px; color:var(--text-muted); margin-top:3px; }
-.report-rank-table .suggestion li { margin:2px 0 2px 12px; }
-
-/* ---- Toast ---- */
-.toast {
-  position:fixed; top:20px; right:20px; padding:10px 18px; border-radius:6px;
-  color:#fff; font-size:12px; font-family:var(--font-mono); z-index:200;
-  animation:fadeIn .3s; border: 1px solid;
-}
-.toast-success { background: rgba(0,230,118,0.15); border-color: var(--green); color: var(--green); }
-.toast-error { background: rgba(255,61,87,0.15); border-color: var(--red); color: var(--red); }
-.toast-info { background: rgba(0,198,255,0.15); border-color: var(--cyan); color: var(--cyan); }
-@keyframes fadeIn { from{opacity:0;transform:translateY(-8px);} to{opacity:1;transform:translateY(0);} }
-
-/* ---- Difficulty Modal ---- */
-.diff-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.7); z-index:300; justify-content:center; align-items:center; }
-.diff-modal-overlay.show { display:flex; }
-.diff-modal {
-  background: var(--bg-card); border-radius:12px; padding:24px 28px;
-  max-width:680px; width:90%; max-height:80vh; overflow-y:auto;
-  border: 1px solid var(--border);
-  box-shadow: 0 0 40px rgba(0,198,255,0.1);
-}
-.diff-modal h3 { font-size:16px; margin-bottom:16px; color: var(--cyan); letter-spacing: 0.05em; }
-.diff-modal h4 { font-size:13px; margin:16px 0 8px; color: var(--text-primary); border-bottom:1px solid var(--border); padding-bottom:4px; }
-.diff-modal table { width:100%; font-size:11px; margin-bottom:12px; }
-.diff-modal th { background:var(--bg-surface); padding:6px 8px; font-weight:600; color: var(--text-secondary); }
-.diff-modal td { padding:6px 8px; border-bottom:1px solid rgba(30,48,72,0.5); color: var(--text-primary); }
-.diff-modal .close-btn { float:right; background:none; border:none; font-size:18px; cursor:pointer; color:var(--text-muted); }
-.diff-modal .close-btn:hover { color: var(--cyan); }
-.diff-helper { display:inline-block; width:16px; height:16px; border-radius:50%; background:var(--border); color:var(--text-secondary); font-size:10px; text-align:center; line-height:16px; cursor:pointer; margin-left:4px; font-weight:700; }
-.diff-helper:hover { background: var(--cyan); color: #000; }
+.weak-none { text-align: center; color: var(--text-muted); padding: 30px; font-size: 13px; }
+.nodata { text-align: center; color: var(--text-muted); padding: 40px; font-size: 13px; }
+.hidden { display: none !important; }
 
 /* ---- Engine analysis ---- */
-.rules-box { background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:12px; }
-.rules-box summary { font-size:13px; font-weight:600; color:var(--cyan); cursor:pointer; user-select:none; }
-.rules-box summary:hover { text-shadow: 0 0 8px var(--cyan-glow); }
-.rule-item { margin:10px 0 12px 16px; font-size:11px; color:var(--text-secondary); line-height:1.6; }
-.rule-item .rule-name { font-weight:700; color:var(--text-primary); font-size:12px; }
-.rule-item .rule-formula { background:var(--bg-deep); padding:2px 6px; border-radius:3px; font-family:var(--font-mono); font-size:10px; color: var(--cyan); }
-.rule-item .rule-threshold { color:var(--red); font-weight:600; }
-
-.engine-summary { background:var(--bg-surface); border-radius:8px; padding:14px 18px; margin-bottom:12px; font-size:12px; color:var(--text-secondary); line-height:1.7; border:1px solid var(--border); }
-.engine-summary strong { color:var(--cyan); }
-.engine-summary .highlight-good { color:var(--green); font-weight:600; }
-.engine-summary .highlight-bad { color:var(--red); font-weight:600; }
-
-.metric-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-bottom:16px; }
-.metric-card { padding:14px 16px; text-align:center; border-top:2px solid var(--cyan); }
-.metric-card .metric-value { font-size:20px; font-weight:700; color:var(--cyan); }
-.metric-card .metric-label { font-size:10px; color:var(--text-muted); margin-top:4px; text-transform: uppercase; letter-spacing:0.04em; }
-
-.weakness-card { padding:14px 18px; margin-bottom:8px; border-left:3px solid var(--red); background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 8px; }
-.weakness-card .w-tag { font-size:14px; font-weight:700; color:var(--text-primary); }
-.weakness-card .w-rules { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
-.weakness-card .w-rule-badge { display:inline-block; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:600; }
-.rule-badge-pass { background: rgba(255,61,87,0.12); color:var(--red); }
-.rule-badge-eff { background: rgba(255,145,0,0.12); color:var(--orange); }
-.rule-badge-trend { background: rgba(179,136,255,0.12); color:var(--purple); }
-.weakness-card .w-data { margin-top:8px; font-size:10px; color:var(--text-muted); line-height:1.6; }
-
-.rec-card { padding:10px 14px; margin-bottom:6px; border-radius:6px; font-size:11px; line-height:1.6; background: var(--bg-surface); }
+.rules-box { background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 12px; }
+.rules-box summary { font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; user-select: none; }
+.rule-item { margin: 10px 0 12px 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.rule-item .rule-name { font-weight: 700; color: var(--text-primary); font-size: 13px; }
+.rule-item .rule-formula { background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+.rule-item .rule-threshold { color: var(--red); font-weight: 600; }
+.engine-summary { background: var(--bg-sidebar); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); line-height: 1.8; border: 1px solid var(--border); }
+.engine-summary strong { color: var(--accent); }
+.engine-summary .highlight-good { color: var(--green); font-weight: 600; }
+.engine-summary .highlight-bad { color: var(--red); font-weight: 600; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.metric-card { padding: 14px 16px; text-align: center; background: var(--bg-white); border-radius: var(--radius-sm); border: 1px solid var(--border); border-top: 2px solid var(--accent); }
+.metric-card .metric-value { font-size: 20px; font-weight: 700; color: var(--accent); }
+.metric-card .metric-label { font-size: 10px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.weakness-card { padding: 14px 18px; margin-bottom: 8px; background: var(--bg-white); border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: var(--radius-sm); }
+.weakness-card .w-tag { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.weakness-card .w-rules { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.weakness-card .w-rule-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.rule-badge-pass { background: var(--red-bg); color: var(--red); }
+.rule-badge-eff { background: var(--orange-bg); color: var(--orange); }
+.rule-badge-trend { background: #f5f3ff; color: var(--purple); }
+.weakness-card .w-data { margin-top: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.7; }
+.rec-card { padding: 10px 14px; margin-bottom: 6px; border-radius: var(--radius-sm); font-size: 12px; line-height: 1.7; background: var(--bg-sidebar); border: 1px solid var(--border); }
 .rec-card.high { border-left: 3px solid var(--red); }
 .rec-card.medium { border-left: 3px solid var(--orange); }
-.rec-card.info { border-left: 3px solid var(--cyan); }
-.rec-card .rec-tag { font-weight:700; font-size:12px; color: var(--text-primary); }
+.rec-card.info { border-left: 3px solid var(--accent); }
+.rec-card .rec-tag { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+
+/* ---- Toast ---- */
+.toast { position: fixed; top: 20px; right: 20px; padding: 10px 18px; border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font-sans); z-index: 200; animation: fadeIn 0.3s; border: 1px solid; font-weight: 500; }
+.toast-success { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
+.toast-error { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+.toast-info { background: var(--accent-light); border-color: #99f6e4; color: var(--accent); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Difficulty Modal ---- */
+.diff-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); backdrop-filter: blur(2px); z-index: 300; justify-content: center; align-items: center; }
+.diff-modal-overlay.show { display: flex; }
+.diff-modal { background: var(--bg-white); border-radius: var(--radius); padding: 24px 28px; max-width: 680px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.diff-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: var(--text-primary); }
+.diff-modal h4 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: var(--text-primary); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.diff-modal table { width: 100%; font-size: 11px; margin-bottom: 12px; }
+.diff-modal th { background: var(--bg-sidebar); padding: 6px 8px; font-weight: 600; color: var(--text-secondary); }
+.diff-modal td { padding: 6px 8px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
+.diff-modal .close-btn { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); padding: 0 4px; }
+.diff-modal .close-btn:hover { color: var(--text-primary); }
+.diff-helper { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--border); color: var(--text-muted); font-size: 10px; text-align: center; line-height: 16px; cursor: pointer; margin-left: 4px; font-weight: 700; font-family: var(--font-sans); }
+.diff-helper:hover { background: var(--accent); color: #fff; }
+
+/* ---- Sync ---- */
+.sync-card .sync-subtitle { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.sync-inputs { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.sync-inputs .form-group { min-width: 160px; }
+.sync-inputs .form-group label { display: flex; align-items: center; gap: 4px; }
+.platform-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.platform-dot.cf { background: var(--orange); } .platform-dot.at { background: var(--accent); } .platform-dot.lg { background: var(--green); }
+.sync-status { font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--text-secondary); }
+.sync-status .ok { color: var(--green); } .sync-status .err { color: var(--red); } .sync-status .pending { color: var(--orange); }
 
 /* ---- Scrollbar ---- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-deep); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--cyan-dim); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+.table-wrap::-webkit-scrollbar { height: 10px; }
+.table-wrap::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 0 0 8px 8px; }
+.table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f1f5f9; }
+.table-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-@media (max-width:768px) {
-  .form-row { flex-direction:column; }
-  .stats-row { flex-direction:column; }
-  .chart-row { flex-direction:column; }
-  .tabs { justify-content:center; }
-  .tab { padding:12px 16px; font-size:11px; }
-  .sync-inputs { flex-direction:column; }
+@media (max-width: 768px) {
+  .sidebar { display: none; } .main { margin-left: 0; }
+  .form-row, .stats-row, .chart-row, .sync-inputs { flex-direction: column; }
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>做题记录平台</h1>
-  <p>洛谷 · Codeforces · AtCoder · 牛客 &nbsp;|&nbsp; 自动同步 + 薄弱分析</p>
-</div>
+<aside class="sidebar">
+  <div class="sidebar-brand"><h2>ACM Helper</h2><span>做题记录 &amp; 薄弱分析</span></div>
+  <nav class="sidebar-nav">
+    <button class="nav-item tab active" data-tab="records"><span class="nav-icon">&#9776;</span> 记录管理</button>
+    <button class="nav-item tab" data-tab="overview"><span class="nav-icon">&#9783;</span> 数据总览</button>
+    <button class="nav-item tab" data-tab="analysis"><span class="nav-icon">&#9881;</span> 薄弱分析</button>
+    <button class="nav-item tab" data-tab="accounts"><span class="nav-icon">&#9787;</span> 账户绑定</button>
+    <button class="nav-item tab" data-tab="report"><span class="nav-icon">&#9993;</span> 周报设置</button>
+  </nav>
+</aside>
 
-<div class="tabs">
-  <div class="tab active" data-tab="records">记录管理</div>
-  <div class="tab" data-tab="overview">数据总览</div>
-  <div class="tab" data-tab="analysis">薄弱分析</div>
-  <div class="tab" data-tab="accounts">账户绑定</div>
-  <div class="tab" data-tab="report">周报设置</div>
-</div>
-
+<main class="main">
 <div class="container">
 
-  <!-- ===== Tab 1: 记录管理 ===== -->
-  <div id="section-records" class="section active">
-
-    <!-- Sync panel -->
-    <div class="sync-card" id="sync-card">
-      <h3>账号同步</h3>
-      <p class="sync-subtitle">一键同步所有已绑定的账户数据（在「账户绑定」页面配置）</p>
-      <div id="bound-summary" style="margin-bottom:8px;font-size:13px;color:#999;">加载中...</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="btn-sync-all">同步全部已绑定账户</button>
-        <button class="btn" id="btn-clear-data" style="background:#fee;color:#c33;">清除数据</button>
-      </div>
-      <div id="sync-progress-bar" style="display:none;margin-top:10px;background:#eee;border-radius:6px;height:20px;overflow:hidden;">
-        <div id="sync-progress-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#667eea,#764ba2);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;"></div>
-      </div>
-      <div id="sync-status" style="margin-top:6px;font-size:13px;color:#999;"></div>
-      <p class="sync-note" style="margin-top:8px;">
-        提示：① 在「账户绑定」页面添加 CF / 洛谷 / AtCoder / 牛客账户后，同步自动生效。
-        ② 洛谷和牛客需要提供 Cookie。③ 数据缓存 30-60 分钟。
-      </p>
+<div id="section-records" class="section active">
+  <div class="card sync-card" id="sync-card">
+    <div class="card-header">账号同步</div>
+    <p class="card-desc">一键同步所有已绑定账户的提交记录</p>
+    <div id="bound-summary" style="margin-bottom:10px;font-size:13px;color:var(--text-muted);">加载中...</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btn-sync-all">同步全部已绑定账户</button>
+      <button class="btn btn-danger" id="btn-clear-data">清除服务器数据</button>
     </div>
-
-    <!-- Manual add form -->
-    <div class="form-card" id="form-card">
-      <h3 id="form-title">添加做题记录</h3>
-      <div class="form-row">
-        <div class="form-group">
-          <label>平台</label>
-          <select id="f-platform"><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option><option value="other">其他</option></select>
-        </div>
-        <div class="form-group">
-          <label>题号</label>
-          <input id="f-problemId" placeholder="例: P1001 / 1234A">
-        </div>
-        <div class="form-group">
-          <label>题名</label>
-          <input id="f-name" placeholder="题目名称">
-        </div>
-        <div class="form-group">
-          <label>难度分</label>
-          <input id="f-difficulty" type="number" placeholder="例: 1200">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>结果</label>
-          <select id="f-result">
-            <option value="AC">AC (通过)</option><option value="WA">WA (答案错误)</option><option value="TLE">TLE (超时)</option><option value="RE">RE (运行错误)</option><option value="CE">CE (编译错误)</option><option value="MLE">MLE (超内存)</option><option value="partial">部分通过</option><option value="unsolved">未解决</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>日期</label>
-          <input id="f-date" type="date">
-        </div>
-        <div class="form-group">
-          <label>耗时 (分钟)</label>
-          <input id="f-time" type="number" placeholder="可选">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>标签（点击选择 + 自定义输入）</label>
-          <div class="tag-select" id="tag-select"></div>
-          <input class="tag-input" id="tag-input" placeholder="自定义标签回车添加" style="margin-top:6px;">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>笔记</label>
-          <input id="f-notes" placeholder="可选备注">
-        </div>
-      </div>
-      <input type="hidden" id="f-editId">
-      <div class="btn-group">
-        <button class="btn btn-primary" id="btn-save">保存</button>
-        <button class="btn btn-outline" id="btn-cancel-edit">取消</button>
-      </div>
+    <div id="sync-progress-bar" style="display:none;margin-top:10px;background:#e2e8f0;border-radius:6px;height:20px;overflow:hidden;">
+      <div id="sync-progress-fill" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;"></div>
     </div>
+    <div id="sync-status" class="sync-status"></div>
+  </div>
 
-    <div class="form-card">
-      <div class="filter-bar">
-        <select id="filter-platform"><option value="">全部平台</option><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option><option value="other">其他</option></select>
-        <select id="filter-result"><option value="">全部结果</option><option value="AC">AC</option><option value="WA">WA</option><option value="TLE">TLE</option><option value="RE">RE</option><option value="CE">CE</option><option value="MLE">MLE</option><option value="unsolved">unsolved</option></select>
-        <select id="filter-tag"><option value="">全部标签</option></select>
-        <input id="filter-search" placeholder="搜索题号/题名...">
-        <button class="btn btn-outline btn-sm" id="btn-export">导出 JSON</button>
-        <label class="btn btn-outline btn-sm" style="cursor:pointer;">导入 JSON<input type="file" id="file-import" accept=".json" style="display:none;"></label>
-        <button class="btn btn-danger btn-sm" id="btn-clear">清空数据</button>
-      </div>
+  <div class="card" id="form-card">
+    <div class="card-header" id="form-title">添加做题记录</div>
+    <div class="form-row">
+      <div class="form-group"><label>平台</label><select id="f-platform"><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option><option value="other">其他</option></select></div>
+      <div class="form-group"><label>题号</label><input id="f-problemId" placeholder="例: P1001 / 1234A"></div>
+      <div class="form-group"><label>题名</label><input id="f-name" placeholder="题目名称"></div>
+      <div class="form-group"><label>难度分</label><input id="f-difficulty" type="number" placeholder="例: 1200"></div>
     </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>平台</th><th>题号</th><th>题名</th><th>难度 <span class="diff-helper" onclick="showDiffModal()" title="查看各平台难度计算规则">?</span></th><th>标签</th><th>结果</th><th>日期</th><th>语言</th><th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="problem-tbody"></tbody>
-      </table>
-      <div id="pagination" class="pagination"></div>
+    <div class="form-row">
+      <div class="form-group"><label>结果</label><select id="f-result"><option value="AC">AC (通过)</option><option value="WA">WA (答案错误)</option><option value="TLE">TLE (超时)</option><option value="RE">RE (运行错误)</option><option value="CE">CE (编译错误)</option><option value="MLE">MLE (超内存)</option><option value="partial">部分通过</option><option value="unsolved">未解决</option></select></div>
+      <div class="form-group"><label>日期</label><input id="f-date" type="date"></div>
+      <div class="form-group"><label>耗时 (分钟)</label><input id="f-time" type="number" placeholder="可选"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group full"><label>标签（点击选择 + 自定义输入）</label><div class="tag-select" id="tag-select"></div><input class="tag-input" id="tag-input" placeholder="自定义标签回车添加" style="margin-top:6px;"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group full"><label>笔记</label><input id="f-notes" placeholder="可选备注"></div>
+    </div>
+    <input type="hidden" id="f-editId">
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-save">保存</button>
+      <button class="btn btn-outline hidden" id="btn-cancel-edit">取消</button>
     </div>
   </div>
 
-  <!-- ===== Tab 2: 数据总览 ===== -->
-  <div id="section-overview" class="section">
-    <div class="stats-row" id="stats-row"></div>
-
-    <div class="chart-row">
-      <div class="chart-card"><h4>做题热力图（近一年）</h4><div class="heatmap" id="heatmap"></div></div>
-      <div class="chart-card"><h4>平台分布</h4><canvas id="chart-platform" height="220"></canvas></div>
+  <div class="table-wrap">
+    <div class="filter-bar">
+      <select id="filter-platform"><option value="">全部平台</option><option value="luogu">洛谷</option><option value="codeforces">Codeforces</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option><option value="other">其他</option></select>
+      <select id="filter-result"><option value="">全部结果</option><option value="AC">AC</option><option value="WA">WA</option><option value="TLE">TLE</option><option value="RE">RE</option><option value="CE">CE</option><option value="MLE">MLE</option><option value="unsolved">unsolved</option></select>
+      <select id="filter-tag"><option value="">全部标签</option></select>
+      <input id="filter-search" placeholder="搜索题号/题名...">
+      <button class="btn btn-outline btn-sm" id="btn-export">导出</button>
+      <label class="btn btn-outline btn-sm" style="cursor:pointer;">导入<input type="file" id="file-import" accept=".json" style="display:none;"></label>
     </div>
-    <div class="chart-row">
-      <div class="chart-card"><h4>近30天做题趋势</h4><canvas id="chart-trend" height="200"></canvas></div>
-      <div class="chart-card"><h4>结果分布</h4><canvas id="chart-result" height="200"></canvas></div>
-    </div>
+    <table>
+      <thead><tr><th>平台</th><th>题号</th><th>题名</th><th>难度 <span class="diff-helper" onclick="showDiffModal()" title="各平台难度规则">?</span></th><th>标签</th><th>结果</th><th>日期</th><th>语言</th><th>操作</th></tr></thead>
+      <tbody id="problem-tbody"></tbody>
+    </table>
   </div>
-
-  <!-- ===== Tab 3: 薄弱分析 ===== -->
-  <div id="section-analysis" class="section">
-    <div class="chart-card"><h4>标签 AC 率排名（从低到高 → 越靠左越薄弱）</h4><canvas id="chart-tag-ac" height="250"></canvas></div>
-    <div class="chart-row">
-      <div class="chart-card"><h4>难度-通过率（每200一档）</h4><canvas id="chart-diff-scatter" height="220"></canvas></div>
-      <div class="chart-card"><h4>平台 AC 率对比</h4><canvas id="chart-platform-radar" height="220"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h4>薄弱知识点 Top 5</h4>
-      <div id="weak-top5"></div>
-    </div>
-
-    <!-- Behavior analysis report -->
-    <div class="chart-card">
-      <h4>行为分析报告</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:10px;">基于提交行为模式（尝试次数、错误序列、时间间隔、能力连续性）自动生成，不依赖标签通过率</p>
-      <button class="btn btn-primary" id="btn-analyze">生成行为分析报告</button>
-      <span style="font-size:12px;color:#999;margin-left:8px;" id="analyze-status"></span>
-      <div id="analyze-report" style="margin-top:12px;"></div>
-    </div>
-
-    <!-- 策略引擎分析 -->
-    <div class="chart-card">
-      <h4>策略引擎分析（新版）</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:10px;">基于三套独立规则的薄弱点判定 + 行为指标计算 + 改进建议</p>
-      <details class="rules-box">
-        <summary>判定规则说明</summary>
-        <div class="rule-item">
-          <span class="rule-name">规则1：通过率策略 (Pass Rate)</span><br>
-          公式: <span class="rule-formula">通过率 = 该标签下AC的题目数 / 尝试过的题目总数</span><br>
-          支持难度加权（基础题错误扣分更重）。阈值 <span class="rule-threshold">α = 0.3</span>，通过率 &lt; 30% 判定为薄弱。<br>
-          通过率为 0 的标签（从未 AC）不参与薄弱判定，单独归为"尚未掌握"。
-        </div>
-        <div class="rule-item">
-          <span class="rule-name">规则2：时间与效率策略 (Efficiency)</span><br>
-          条件A: <span class="rule-formula">该标签平均尝试次数 &gt; γ</span>（<span class="rule-threshold">γ = 3 次</span>）<br>
-          条件B: <span class="rule-formula">该标签平均解题耗时 &gt; β × 全站同类题目耗时中位数</span>（<span class="rule-threshold">β = 1.5</span>）<br>
-          满足任一条件即判定为效率低下（薄弱）。
-        </div>
-        <div class="rule-item">
-          <span class="rule-name">规则3：学习趋势策略 (Learning Trend)</span><br>
-          将历史提交按时间均分为前后半区，计算 <span class="rule-formula">后半区正确率 / 前半区正确率</span><br>
-          比值 &lt; <span class="rule-threshold">0.8</span>（后期显著下降）或 周正确率线性回归斜率 &lt; <span class="rule-threshold">0.05</span>（几乎无进步），判定为薄弱。
-        </div>
-      </details>
-      <button class="btn btn-primary" id="btn-engine-analyze" style="margin-top:10px;">运行策略引擎分析</button>
-      <span style="font-size:12px;color:#999;margin-left:8px;" id="engine-analyze-status"></span>
-      <div id="engine-report" style="margin-top:14px;"></div>
-    </div>
-  </div>
-
-  <!-- ===== Tab 4: 账户绑定 ===== -->
-  <div id="section-accounts" class="section">
-    <div class="chart-card">
-      <h4>已绑定的平台账户</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:12px;">绑定后无需每次手动输入，换绑或删除随时生效</p>
-      <div id="bound-accounts-list" style="margin-bottom:12px;">
-        <div style="color:#999;font-size:13px;">加载中...</div>
-      </div>
-    </div>
-
-    <div class="chart-card" style="margin-top:12px;">
-      <h4>绑定新账户</h4>
-      <div class="sync-inputs">
-        <div class="form-group">
-          <label>平台</label>
-          <select id="bind-platform" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
-            <option value="codeforces">Codeforces</option>
-            <option value="luogu">洛谷</option>
-            <option value="atcoder">AtCoder</option>
-            <option value="nowcoder">牛客</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>用户名 / Handle / UID</label>
-          <input id="bind-username" placeholder="例: tourist">
-        </div>
-      </div>
-      <div class="sync-inputs" style="margin-top:6px;">
-        <div class="form-group" style="min-width:380px;">
-          <label>Cookie（洛谷/牛客需要，CF 可留空）</label>
-          <input id="bind-cookie" placeholder="从浏览器 F12 → Application → Cookies 复制">
-        </div>
-      </div>
-      <button class="btn btn-primary" id="btn-bind" style="margin-top:8px;">绑定账户</button>
-      <span id="bind-status" style="font-size:12px;color:#999;margin-left:8px;"></span>
-    </div>
-  </div>
-
-  <!-- ===== Tab 5: 周报设置 ===== -->
-  <div id="section-report" class="section">
-    <div class="chart-card">
-      <h4>邮件配置</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:12px;">每周自动生成训练分析报告并发送到指定邮箱</p>
-      <div class="sync-inputs">
-        <div class="form-group">
-          <label>SMTP 服务器</label>
-          <input id="cfg-smtp-host" placeholder="smtp.qq.com" value="smtp.qq.com">
-        </div>
-        <div class="form-group">
-          <label>端口</label>
-          <input id="cfg-smtp-port" type="number" placeholder="587" value="587">
-        </div>
-      </div>
-      <div class="sync-inputs" style="margin-top:6px;">
-        <div class="form-group">
-          <label>发件人邮箱</label>
-          <input id="cfg-sender-email" placeholder="your@qq.com">
-        </div>
-        <div class="form-group">
-          <label>授权码（QQ邮箱需使用授权码，非登录密码）</label>
-          <input id="cfg-sender-password" type="password" placeholder="邮箱授权码">
-        </div>
-      </div>
-      <div class="sync-inputs" style="margin-top:6px;">
-        <div class="form-group">
-          <label>收件人邮箱</label>
-          <input id="cfg-receiver-email" placeholder="receive@qq.com">
-        </div>
-      </div>
-      <div class="sync-inputs" style="margin-top:6px;">
-        <div class="form-group">
-          <label>发送时间（星期几）</label>
-          <select id="cfg-schedule-day" style="padding:8px;border:1px solid #ddd;border-radius:4px;">
-            <option value="0">周一</option>
-            <option value="1" selected>周二</option>
-            <option value="2">周三</option>
-            <option value="3">周四</option>
-            <option value="4">周五</option>
-            <option value="5">周六</option>
-            <option value="6">周日</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>发送时间（小时）</label>
-          <select id="cfg-schedule-hour" style="padding:8px;border:1px solid #ddd;border-radius:4px;">
-            <script>for(let h=0;h<24;h++) document.write('<option value="'+h+'">'+h+':00</option>');</script>
-          </select>
-        </div>
-      </div>
-      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-          <input type="checkbox" id="cfg-enabled"> 启用每周自动发送
-        </label>
-        <button class="btn btn-primary" id="btn-save-email">保存配置</button>
-        <button class="btn" id="btn-test-email" style="background:#f0f0f0;">发送测试邮件</button>
-        <span id="email-status" style="font-size:12px;color:#999;"></span>
-      </div>
-    </div>
-
-    <div class="chart-card" style="margin-top:12px;">
-      <h4>AI 自动打标签</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:8px;">同步完成后自动用 DeepSeek 为无标签题目推断算法标签</p>
-      <div class="sync-inputs">
-        <div class="form-group" style="min-width:300px;">
-          <label>DeepSeek API Key</label>
-          <input id="cfg-deepseek-key" type="password" placeholder="sk-...">
-        </div>
-      </div>
-    </div>
-
-    <div class="chart-card" style="margin-top:12px;">
-      <h4>手动生成周报</h4>
-      <p style="font-size:12px;color:#999;margin-bottom:8px;">基于所有已绑定账户的最新数据，生成分析报告并发送邮件</p>
-      <button class="btn btn-primary" id="btn-trigger-report">为全部已绑定账户生成周报</button>
-      <span id="trigger-status" style="font-size:12px;color:#999;margin-left:8px;"></span>
-    </div>
-  </div>
-
+  <div id="pagination" class="pagination"></div>
 </div>
 
+<div id="section-overview" class="section">
+  <div class="stats-row" id="stats-row"></div>
+  <div class="chart-row">
+    <div class="card"><div class="card-header">做题热力图（近一年）</div><div class="heatmap" id="heatmap"></div></div>
+    <div class="card"><div class="card-header">平台分布</div><canvas id="chart-platform" height="170"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="card"><div class="card-header">近30天做题趋势</div><canvas id="chart-trend" height="200"></canvas></div>
+    <div class="card"><div class="card-header">结果分布</div><canvas id="chart-result" height="200"></canvas></div>
+  </div>
+</div>
+
+<div id="section-analysis" class="section">
+  <div class="card"><div class="card-header">标签 AC 率排名（从低到高 &rarr; 越靠左越薄弱）</div><canvas id="chart-tag-ac" height="180"></canvas></div>
+  <div class="chart-row">
+    <div class="card"><div class="card-header">难度-通过率（每200一档）</div><canvas id="chart-diff-scatter" height="150"></canvas></div>
+    <div class="card"><div class="card-header">平台 AC 率对比</div><canvas id="chart-platform-radar" height="120"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header">薄弱知识点 Top 5</div>
+    <div id="weak-top5"></div>
+  </div>
+  <div class="card">
+    <div class="card-header">策略引擎分析</div>
+    <p class="card-desc">基于三套独立规则的薄弱点判定 + 行为指标计算 + 改进建议</p>
+    <details class="rules-box">
+      <summary>判定规则说明</summary>
+      <div class="rule-item"><span class="rule-name">规则1：通过率策略</span><br>通过率 &lt; <span class="rule-threshold">30%</span> 判定为薄弱。</div>
+      <div class="rule-item"><span class="rule-name">规则2：效率策略</span><br>平均尝试 &gt; <span class="rule-threshold">3次</span> 或耗时 &gt; <span class="rule-threshold">1.5倍</span> 同类中位数。</div>
+      <div class="rule-item"><span class="rule-name">规则3：趋势策略</span><br>后半区正确率/前半区 &lt; <span class="rule-threshold">0.8</span> 或斜率 &lt; <span class="rule-threshold">0.05</span>。</div>
+    </details>
+    <button class="btn btn-primary" id="btn-engine-analyze">运行策略引擎分析</button>
+    <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" id="engine-analyze-status"></span>
+    <div id="engine-report" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<div id="section-accounts" class="section">
+  <div class="card">
+    <div class="card-header">已绑定的平台账户</div>
+    <p class="card-desc">绑定后无需每次手动输入，换绑或删除随时生效</p>
+    <div id="bound-accounts-list" style="margin-bottom:12px;"><div style="color:var(--text-muted);font-size:13px;">加载中...</div></div>
+  </div>
+  <div class="card" style="margin-top:12px;">
+    <div class="card-header">绑定新账户</div>
+    <div class="sync-inputs">
+      <div class="form-group"><label>平台</label><select id="bind-platform" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-sans);background:var(--bg-white);"><option value="codeforces">Codeforces</option><option value="luogu">洛谷</option><option value="atcoder">AtCoder</option><option value="nowcoder">牛客</option></select></div>
+      <div class="form-group"><label>用户名 / Handle / UID</label><input id="bind-username" placeholder="例: tourist"></div>
+    </div>
+    <div class="sync-inputs" style="margin-top:6px;">
+      <div class="form-group" style="min-width:380px;"><label>Cookie（洛谷/牛客需要）</label><input id="bind-cookie" placeholder="从浏览器 F12 &rarr; Application &rarr; Cookies 复制"></div>
+    </div>
+    <button class="btn btn-primary" id="btn-bind" style="margin-top:8px;">绑定账户</button>
+    <span id="bind-status" style="font-size:12px;color:var(--text-muted);margin-left:8px;"></span>
+  </div>
+</div>
+
+<div id="section-report" class="section">
+  <div class="card">
+    <div class="card-header">邮件配置</div>
+    <p class="card-desc">每周自动生成训练分析报告并发送到指定邮箱</p>
+    <div class="sync-inputs">
+      <div class="form-group"><label>SMTP 服务器</label><input id="cfg-smtp-host" placeholder="smtp.qq.com" value="smtp.qq.com"></div>
+      <div class="form-group"><label>端口</label><input id="cfg-smtp-port" type="number" placeholder="587" value="587"></div>
+    </div>
+    <div class="sync-inputs" style="margin-top:6px;">
+      <div class="form-group"><label>发件人邮箱</label><input id="cfg-sender-email" placeholder="your@qq.com"></div>
+      <div class="form-group"><label>授权码</label><input id="cfg-sender-password" type="password" placeholder="邮箱授权码"></div>
+    </div>
+    <div class="sync-inputs" style="margin-top:6px;">
+      <div class="form-group"><label>收件人邮箱</label><input id="cfg-receiver-email" placeholder="receive@qq.com"></div>
+    </div>
+    <div class="sync-inputs" style="margin-top:6px;">
+      <div class="form-group"><label>发送星期</label><select id="cfg-schedule-day" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-sans);background:var(--bg-white);"><option value="0">周一</option><option value="1" selected>周二</option><option value="2">周三</option><option value="3">周四</option><option value="4">周五</option><option value="5">周六</option><option value="6">周日</option></select></div>
+      <div class="form-group"><label>发送时间</label><select id="cfg-schedule-hour" style="padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-sans);background:var(--bg-white);"><script>for(let h=0;h<24;h++)document.write('<option value="'+h+'">'+h+':00</option>');</script></select></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" id="cfg-enabled"> 启用每周自动发送</label>
+      <button class="btn btn-primary" id="btn-save-email">保存配置</button>
+      <button class="btn btn-outline" id="btn-test-email">发送测试邮件</button>
+      <span id="email-status" style="font-size:12px;color:var(--text-muted);"></span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px;">
+    <div class="card-header">AI 自动打标签</div>
+    <p class="card-desc">同步完成后自动用 DeepSeek 为无标签题目推断算法标签</p>
+    <div class="sync-inputs"><div class="form-group" style="min-width:300px;"><label>DeepSeek API Key</label><input id="cfg-deepseek-key" type="password" placeholder="sk-..."></div></div>
+  </div>
+  <div class="card" style="margin-top:12px;">
+    <div class="card-header">手动生成周报</div>
+    <p class="card-desc">基于所有已绑定账户的最新数据，生成分析报告并发送邮件</p>
+    <button class="btn btn-primary" id="btn-trigger-report">为全部已绑定账户生成周报</button>
+    <span id="trigger-status" style="font-size:12px;color:var(--text-muted);margin-left:8px;"></span>
+  </div>
+</div>
+
+</div>
+</main>
+
+<input type="hidden" id="sync-cf"><input type="hidden" id="sync-at"><input type="hidden" id="sync-lg"><input type="hidden" id="sync-lg-cookie">
 <div id="toast-container"></div>
 
 <script>
-// ==================== DATA ====================
-const STORAGE_KEY = 'problem_tracker_data';
-const SERVER = 'http://localhost:8765';
+const STORAGE_KEY='problem_tracker_data',SERVER='http://localhost:8765';
+const TAG_CN={'dp':'动态规划','greedy':'贪心','math':'数学','graphs':'图论','graph':'图论','data structures':'数据结构','implementation':'模拟','constructive algorithms':'构造','brute force':'暴力枚举','sortings':'排序','strings':'字符串','binary search':'二分','number theory':'数学','combinatorics':'组合数学','geometry':'计算几何','trees':'树','dfs and similar':'DFS','shortest paths':'最短路','two pointers':'双指针','bitmasks':'位运算','divide and conquer':'分治','flows':'网络流','games':'博弈论','hashing':'哈希','probabilities':'概率','matrices':'矩阵','dsu':'并查集','string suffix structures':'后缀结构','ternary search':'三分','meet-in-the-middle':'二分','fft':'FFT','interactive':'交互','chinese remainder theorem':'中国剩余定理','expression parsing':'表达式解析','schedules':'调度','search':'搜索','simulation':'模拟','prefix sum':'前缀和','bfs':'BFS','stl':'STL','graph matchings':'图匹配'};
+function cnTag(t){return TAG_CN[(t||'').toLowerCase()]||t;}
+function normalizeLanguage(lang){if(!lang)return'-';const LG_LANG={0:'?',1:'C',2:'C++98',3:'C++11',4:'C++14',5:'C++17',6:'C++20',7:'C++23',8:'C#',9:'Python 3',10:'Java 8',11:'Java 11',12:'C++14',14:'Ruby',15:'Rust',16:'Go',17:'Kotlin',18:'Haskell',19:'JavaScript',20:'TypeScript',21:'Scala',22:'C++17',23:'C++20',24:'C++23',25:'Python 3',27:'Python 3',28:'C++17'};const s=String(lang).trim();if(/^\d+$/.test(s))return LG_LANG[parseInt(s)]||('ID:'+s);if(/^(C\+\+|GNU C\+\+|G\+\+)/i.test(s))return'C++';if(/^GNU C/i.test(s))return'C';if(/^Python\s*3/i.test(s))return'Python 3';if(/^Python\s*2/i.test(s))return'Python 2';if(/^Java\s*(\d+)/i.test(s))return s.match(/^Java\s*\d+/i)[0];return s;}
+const PLATFORM_NAMES={luogu:'洛谷',codeforces:'Codeforces',atcoder:'AtCoder',nowcoder:'牛客',other:'其他'};
+const RESULT_NAMES={AC:'AC',WA:'WA',TLE:'TLE',RE:'RE',CE:'CE',MLE:'MLE',partial:'partial',unsolved:'unsolved'};
+const RESULT_NORMALIZE={OK:'AC',WRONG_ANSWER:'WA',TIME_LIMIT_EXCEEDED:'TLE',RUNTIME_ERROR:'RE',COMPILATION_ERROR:'CE',MEMORY_LIMIT_EXCEEDED:'MLE',PRESENTATION_ERROR:'WA',IDLENESS_LIMIT_EXCEEDED:'TLE',SKIPPED:'unsolved',CHALLENGED:'unsolved',PARTIAL:'partial',FAILED:'unsolved',TESTING:'unsolved',CRASHED:'RE',SECURITY_VIOLATED:'unsolved',INPUT_PREPARATION_CRASHED:'unsolved',SUBMITTED:'unsolved',REJECTED:'unsolved',OLE:'RE',IE:'RE'};
+function normalizeResult(r){return RESULT_NORMALIZE[r]||r;}
+const PRESET_TAGS=['动态规划','DFS','BFS','STL','FFT','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','计算几何','博弈论','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路','暴力枚举','哈希','分治','概率'];
+let problems=[],currentTagSelection=[],currentPage=1,charts={};
+const PAGE_SIZE=15;
 
-// Tag name Chinese mapping
-const TAG_CN = {
-  'dp':'动态规划','greedy':'贪心','math':'数学','graphs':'图论','graph':'图论',
-  'data structures':'数据结构','implementation':'模拟','constructive algorithms':'构造',
-  'brute force':'暴力枚举','sortings':'排序','strings':'字符串','binary search':'二分',
-  'number theory':'数学','combinatorics':'组合数学','geometry':'计算几何','trees':'树',
-  'dfs and similar':'DFS','shortest paths':'最短路','two pointers':'双指针',
-  'bitmasks':'位运算','divide and conquer':'分治','flows':'网络流','games':'博弈论',
-  'hashing':'哈希','probabilities':'概率','matrices':'矩阵','dsu':'并查集',
-  'string suffix structures':'后缀结构','ternary search':'三分','meet-in-the-middle':'二分',
-  'fft':'FFT','interactive':'交互','chinese remainder theorem':'中国剩余定理',
-  'expression parsing':'表达式解析','schedules':'调度',
-  'search':'搜索','simulation':'模拟','prefix sum':'前缀和',
-  'bfs':'BFS','stl':'STL',
-  'graph matchings':'图匹配',
-};
-function cnTag(t) { return TAG_CN[(t||'').toLowerCase()] || t; }
-function normalizeLanguage(lang) {
-  if (!lang) return '-';
-  // Luogu numeric IDs → readable names
-  const LG_LANG = {
-    0:'?',1:'C',2:'C++98',3:'C++11',4:'C++14',5:'C++17',
-    6:'C++20',7:'C++23',8:'C#',9:'Python 3',10:'Java 8',
-    11:'Java 11',12:'C++14',14:'Ruby',15:'Rust',16:'Go',
-    17:'Kotlin',18:'Haskell',19:'JavaScript',20:'TypeScript',
-    21:'Scala',22:'C++17',23:'C++20',24:'C++23',
-    25:'Python 3',27:'Python 3',28:'C++17',
-  };
-  const s = String(lang).trim();
-  if (/^\d+$/.test(s)) { return LG_LANG[parseInt(s)] || ('ID:'+s); }
-  // Unify C++ variants to just "C++"
-  if (/^(C\+\+|GNU C\+\+|G\+\+)/i.test(s)) return 'C++';
-  // Shorten verbose names
-  if (/^GNU C/i.test(s)) return 'C';
-  if (/^Python\s*3/i.test(s)) return 'Python 3';
-  if (/^Python\s*2/i.test(s)) return 'Python 2';
-  if (/^Java\s*(\d+)/i.test(s)) return s.match(/^Java\s*\d+/i)[0];
-  return s;
-}
-const PLATFORM_NAMES = { luogu:'洛谷', codeforces:'Codeforces', atcoder:'AtCoder', nowcoder:'牛客', other:'其他' };
-const RESULT_NAMES = { AC:'AC', WA:'WA', TLE:'TLE', RE:'RE', CE:'CE', MLE:'MLE', partial:'partial', unsolved:'unsolved' };
-const RESULT_NORMALIZE = {
-  'OK':'AC','WRONG_ANSWER':'WA','TIME_LIMIT_EXCEEDED':'TLE',
-  'RUNTIME_ERROR':'RE','COMPILATION_ERROR':'CE','MEMORY_LIMIT_EXCEEDED':'MLE',
-  'PRESENTATION_ERROR':'WA','IDLENESS_LIMIT_EXCEEDED':'TLE',
-  'SKIPPED':'unsolved','CHALLENGED':'unsolved','PARTIAL':'partial',
-  'FAILED':'unsolved','TESTING':'unsolved','CRASHED':'RE','SECURITY_VIOLATED':'unsolved',
-  'INPUT_PREPARATION_CRASHED':'unsolved','SUBMITTED':'unsolved',
-  'REJECTED':'unsolved','OLE':'RE','IE':'RE',
-};
-function normalizeResult(r) { return RESULT_NORMALIZE[r] || r; }
-const PRESET_TAGS = ['动态规划','DFS','BFS','STL','FFT','贪心','数学','图论','数据结构','字符串','构造','二分','搜索','计算几何','博弈论','模拟','位运算','树','排序','前缀和','双指针','并查集','最短路','暴力枚举','哈希','分治','概率'];
+function load(){try{problems=JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch(e){problems=[];}let cleaned=false;problems.forEach(p=>{if(p.tags){const n=p.tags.filter(t=>t!=='*special');if(n.length!==p.tags.length){p.tags=n;cleaned=true;}}});if(cleaned)save();}
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(problems));}
 
-let problems = [];
-let currentTagSelection = [];
-let currentPage = 1;
-const PAGE_SIZE = 15;
-let charts = {};
+function toast(msg,type='success'){const el=document.createElement('div');el.className='toast toast-'+type;el.textContent=msg;document.getElementById('toast-container').appendChild(el);setTimeout(()=>el.remove(),2500);}
 
-function load() {
-  try { problems = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e) { problems = []; }
-  // Clean *special tags from all records
-  let cleaned = false;
-  problems.forEach(p => { if (p.tags) { const n = p.tags.filter(t => t !== '*special'); if (n.length !== p.tags.length) { p.tags = n; cleaned = true; } } });
-  if (cleaned) save();
-}
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(problems)); }
+async function syncPlatform(platform){let param,url;if(platform==='codeforces'){const handle=document.getElementById('sync-cf').value.trim();if(!handle)return{error:'请输入 Codeforces handle'};param='handle='+encodeURIComponent(handle);}else if(platform==='atcoder'){const username=document.getElementById('sync-at').value.trim();if(!username)return{error:'请输入 AtCoder username'};param='username='+encodeURIComponent(username);}else if(platform==='luogu'){const uid=document.getElementById('sync-lg').value.trim();if(!uid)return{error:'请输入洛谷 UID'};param='uid='+encodeURIComponent(uid);const cookie=document.getElementById('sync-lg-cookie').value.trim();if(cookie)param+='&cookie='+encodeURIComponent(cookie);}url=SERVER+'/api/fetch/'+platform+'?'+param;const resp=await fetch(url);const data=await resp.json();if(data.error)throw new Error(data.message||'Unknown error');return data;}
+function mergeData(newRecords){if(!Array.isArray(newRecords))return 0;const seen=new Set();problems.forEach(p=>{seen.add(p.platform+'::'+p.problemId+'::'+p.date+'::'+p.result);});let added=0;newRecords.forEach(r=>{const key=r.platform+'::'+r.problemId+'::'+r.date+'::'+r.result;if(!seen.has(key)){seen.add(key);problems.push(r);added++;}});save();return added;}
 
-// ==================== TOAST ====================
-function toast(msg, type='success') {
-  const el = document.createElement('div');
-  el.className = 'toast toast-' + type;
-  el.textContent = msg;
-  document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), 2500);
-}
+async function loadFromServer(){try{const resp=await fetch(SERVER+'/api/v2/submissions');const data=await resp.json();if(!Array.isArray(data)||data.length===0)return;const index={};problems.forEach((p,i)=>{index[p.platform+'::'+p.problemId+'::'+p.date+'::'+p.result]=i;});let added=0,updated=0;for(const r of data){const key=r.platform+'::'+r.problemId+'::'+r.date+'::'+r.result;if(index[key]!==undefined){const existing=problems[index[key]];let changed=false;if((!existing.tags||existing.tags.length===0)&&r.tags&&r.tags.length>0){existing.tags=r.tags;changed=true;}if((!existing.difficulty||existing.difficulty===0)&&r.difficulty&&r.difficulty>0){existing.difficulty=r.difficulty;changed=true;}if(changed)updated++;}else{index[key]=problems.length;problems.push({...r,id:r.platform+'-'+r.problemId+'-'+r.date.replace(/-/g,'')});added++;}}save();const msg=added>0||updated>0?(added>0?'已加载 '+added+' 条新记录':'')+(updated>0?'，'+updated+' 条已更新标签':''):'数据已是最新';toast(msg);}catch(e){console.error('loadFromServer:',e);}}
+function saveToStorage(){save();}
 
-// ==================== SYNC ====================
-async function syncPlatform(platform) {
-  let param, url;
-  if (platform === 'codeforces') {
-    const handle = document.getElementById('sync-cf').value.trim();
-    if (!handle) return { error: '请输入 Codeforces handle' };
-    param = 'handle=' + encodeURIComponent(handle);
-  } else if (platform === 'atcoder') {
-    const username = document.getElementById('sync-at').value.trim();
-    if (!username) return { error: '请输入 AtCoder username' };
-    param = 'username=' + encodeURIComponent(username);
-  } else if (platform === 'luogu') {
-    const uid = document.getElementById('sync-lg').value.trim();
-    if (!uid) return { error: '请输入洛谷 UID' };
-    param = 'uid=' + encodeURIComponent(uid);
-    const cookie = document.getElementById('sync-lg-cookie').value.trim();
-    if (cookie) param += '&cookie=' + encodeURIComponent(cookie);
-  }
-  url = `${SERVER}/api/fetch/${platform}?${param}`;
+function getAllTags(){const s=new Set();problems.forEach(p=>p.tags.forEach(t=>{if(t!=='*special')s.add(t);}));return[...s].sort();}
+function renderTagSelector(){const displayMap=new Map();PRESET_TAGS.forEach(t=>{const d=cnTag(t);if(!displayMap.has(d))displayMap.set(d,t);});getAllTags().forEach(t=>{const d=cnTag(t);if(!displayMap.has(d))displayMap.set(d,t);});const cont=document.getElementById('tag-select');cont.innerHTML='';[...displayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([display,raw])=>{const chip=document.createElement('span');chip.className='tag-chip'+(currentTagSelection.includes(raw)?' selected':'');chip.textContent=display;chip.onclick=()=>{const idx=currentTagSelection.indexOf(raw);if(idx>=0)currentTagSelection.splice(idx,1);else currentTagSelection.push(raw);renderTagSelector();};cont.appendChild(chip);});}
+document.getElementById('tag-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const v=e.target.value.trim();if(v&&!currentTagSelection.includes(v)){currentTagSelection.push(v);renderTagSelector();}e.target.value='';}});
+document.getElementById('btn-cancel-edit').addEventListener('click',resetForm);
 
-  const resp = await fetch(url);
-  const data = await resp.json();
-  if (data.error) throw new Error(data.message || 'Unknown error');
-  return data;
-}
+function resetForm(){document.getElementById('f-editId').value='';document.getElementById('f-platform').value='luogu';document.getElementById('f-problemId').value='';document.getElementById('f-name').value='';document.getElementById('f-difficulty').value='';document.getElementById('f-result').value='AC';document.getElementById('f-date').value=new Date().toISOString().slice(0,10);document.getElementById('f-time').value='';document.getElementById('f-notes').value='';currentTagSelection=[];renderTagSelector();document.getElementById('form-title').textContent='添加做题记录';document.getElementById('btn-cancel-edit').classList.add('hidden');}
+function uuid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function collectForm(){return{id:document.getElementById('f-editId').value||uuid(),platform:document.getElementById('f-platform').value,problemId:document.getElementById('f-problemId').value.trim(),name:document.getElementById('f-name').value.trim(),difficulty:parseInt(document.getElementById('f-difficulty').value)||0,tags:[...currentTagSelection],result:document.getElementById('f-result').value,date:document.getElementById('f-date').value||new Date().toISOString().slice(0,10),timeSpent:parseInt(document.getElementById('f-time').value)||0,language:'',notes:document.getElementById('f-notes').value.trim()};}
+document.getElementById('btn-save').addEventListener('click',()=>{const p=collectForm();if(!p.problemId){toast('题号不能为空','error');return;}const editId=document.getElementById('f-editId').value;if(editId){const idx=problems.findIndex(x=>x.id===editId);if(idx>=0){problems[idx]=p;toast('已更新');}}else{problems.unshift(p);toast('已添加');}save();resetForm();renderAll();});
 
-function mergeData(newRecords) {
-  if (!Array.isArray(newRecords)) return 0;
-  // Keep all submissions; dedup by platform+problemId+date+result (avoid exact dupes on re-sync)
-  const seen = new Set();
-  problems.forEach(p => { seen.add(p.platform + '::' + p.problemId + '::' + p.date + '::' + p.result); });
-  let added = 0;
-  newRecords.forEach(r => {
-    const key = r.platform + '::' + r.problemId + '::' + r.date + '::' + r.result;
-    if (!seen.has(key)) {
-      seen.add(key);
-      problems.push(r);
-      added++;
-    }
-  });
-  save();
-  return added;
-}
+function editProblem(id){const p=problems.find(x=>x.id===id);if(!p)return;document.getElementById('f-editId').value=p.id;document.getElementById('f-platform').value=p.platform;document.getElementById('f-problemId').value=p.problemId;document.getElementById('f-name').value=p.name;document.getElementById('f-difficulty').value=p.difficulty;document.getElementById('f-result').value=p.result;document.getElementById('f-date').value=p.date;document.getElementById('f-time').value=p.timeSpent||'';document.getElementById('f-notes').value=p.notes||'';currentTagSelection=[...(p.tags||[])];renderTagSelector();document.getElementById('form-title').textContent='编辑做题记录';document.getElementById('btn-cancel-edit').classList.remove('hidden');document.getElementById('section-records').scrollIntoView({behavior:'smooth'});}
+function deleteProblem(id){if(!confirm('确定删除这条记录？'))return;problems=problems.filter(x=>x.id!==id);save();renderAll();toast('已删除');}
 
-async function doSync(platform) {
-  const status = document.getElementById('sync-status');
-  const name = platform === 'codeforces' ? 'Codeforces' : platform === 'atcoder' ? 'AtCoder' : '洛谷';
-  status.innerHTML = `<span class="pending">正在拉取 ${name} 数据...</span>`;
-  try {
-    const data = await syncPlatform(platform);
-    if (data.error) {
-      status.innerHTML = `<span class="err">${name}: ${data.error}</span>`;
-      return;
-    }
-    const added = mergeData(data);
-    status.innerHTML = `<span class="ok">${name}: 获取 ${data.length} 条记录，新增 ${added} 条</span>`;
-  } catch (e) {
-    status.innerHTML = `<span class="err">${name}: ${e.message}（请确认 server.py 已启动）</span>`;
-  }
-}
+function difficultyClass(v){if(!v)return'';if(v<=1200)return'diff-easy';if(v<=2000)return'diff-med';return'diff-hard';}
+function getFiltered(){const fp=document.getElementById('filter-platform').value,fr=document.getElementById('filter-result').value,ft=document.getElementById('filter-tag').value,fs=document.getElementById('filter-search').value.toLowerCase();const filtered=problems.filter(p=>{if(fp&&p.platform!==fp)return false;if(fr&&normalizeResult(p.result)!==fr)return false;if(ft&&!(p.tags||[]).includes(ft))return false;if(fs&&!(p.problemId||'').toLowerCase().includes(fs)&&!(p.name||'').toLowerCase().includes(fs))return false;return true;});filtered.sort((a,b)=>(b.date||'').localeCompare(a.date||''));return filtered;}
 
-async function doSyncAll() {
-  const status = document.getElementById('sync-status');
-  status.innerHTML = '<span class="pending">开始同步...</span>';
-  const platforms = ['codeforces', 'atcoder', 'luogu'];
-  for (const p of platforms) {
-    const input = document.getElementById('sync-' + (p === 'codeforces' ? 'cf' : p === 'atcoder' ? 'at' : 'lg'));
-    if (input.value.trim()) {
-      await doSync(p);
-    }
-  }
-  renderAll();
-  toast('同步完成');
-}
+function renderTable(){const filtered=getFiltered(),total=filtered.length,totalPages=Math.ceil(total/PAGE_SIZE)||1;if(currentPage>totalPages)currentPage=totalPages;const start=(currentPage-1)*PAGE_SIZE,page=filtered.slice(start,start+PAGE_SIZE);const tbody=document.getElementById('problem-tbody');if(page.length===0){tbody.innerHTML='<tr><td colspan="9" class="nodata">暂无记录，使用上方"账号同步"拉取或手动添加</td></tr>';}else{tbody.innerHTML=page.map(p=>{const diffCls=difficultyClass(p.difficulty);return'<tr><td>'+(PLATFORM_NAMES[p.platform]||p.platform)+'</td><td>'+(p.problemId||'-')+'</td><td>'+(p.name||'-')+'</td><td>'+(p.difficulty?'<span class="diff-span '+diffCls+'">'+p.difficulty+'</span>':'-')+'</td><td>'+[...new Set((p.tags||[]).filter(t=>t!=='*special').map(t=>cnTag(t)))].map(cn=>'<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">'+cn+'</span>').join(' ')+'</td><td><span class="result-badge result-'+normalizeResult(p.result)+'">'+(RESULT_NAMES[normalizeResult(p.result)]||normalizeResult(p.result))+'</span></td><td>'+p.date+'</td><td>'+(p.language?normalizeLanguage(p.language):(p.timeSpent?p.timeSpent+'分':'-'))+'</td><td><button class="btn btn-outline btn-sm" onclick="editProblem(\''+p.id+'\')">编辑</button> <button class="btn btn-danger btn-sm" onclick="deleteProblem(\''+p.id+'\')">删除</button></td></tr>';}).join('');}const pag=document.getElementById('pagination');if(totalPages<=1){pag.innerHTML='';return;}let html='';for(let i=1;i<=totalPages;i++)html+='<button class="'+(i===currentPage?'active':'')+'" onclick="goPage('+i+')">'+i+'</button>';pag.innerHTML=html;}
+function goPage(n){currentPage=n;renderTable();}
+['filter-platform','filter-result','filter-tag','filter-search'].forEach(id=>{document.getElementById(id).addEventListener(id==='filter-search'?'input':'change',()=>{currentPage=1;renderTable();});});
+function updateFilterTags(){const sel=document.getElementById('filter-tag'),cur=sel.value;sel.innerHTML='<option value="">全部标签</option>'+getAllTags().map(t=>'<option value="'+t+'">'+cnTag(t)+'</option>').join('');sel.value=cur;}
 
-// Sync buttons are now handled by syncAllBound() in the new panel
+document.getElementById('btn-export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(problems,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='problem-records-'+new Date().toISOString().slice(0,10)+'.json';a.click();toast('导出成功');});
+document.getElementById('file-import').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data))throw new Error('格式错误');const added=mergeData(data);save();renderAll();toast('导入 '+data.length+' 条，新增 '+added+' 条');}catch(err){toast('导入失败：'+err.message,'error');}};reader.readAsText(file);e.target.value='';});
+const btnClearOld=document.getElementById('btn-clear');if(btnClearOld)btnClearOld.addEventListener('click',()=>{if(!confirm('确定清空所有数据？此操作不可撤销。建议先导出备份。'))return;problems=[];save();renderAll();toast('已清空');});
 
-async function loadFromServer() {
-  try {
-    const resp = await fetch(SERVER + '/api/v2/submissions');
-    const data = await resp.json();
-    if (!Array.isArray(data) || data.length === 0) return;
-    // Build index of existing records
-    const index = {};
-    problems.forEach((p, i) => { index[p.platform + '::' + p.problemId + '::' + p.date + '::' + p.result] = i; });
-    let added = 0, updated = 0;
-    for (const r of data) {
-      const key = r.platform + '::' + r.problemId + '::' + r.date + '::' + r.result;
-      if (index[key] !== undefined) {
-        // Update tags/difficulty if server has more data
-        const existing = problems[index[key]];
-        let changed = false;
-        if ((!existing.tags || existing.tags.length === 0) && r.tags && r.tags.length > 0) {
-          existing.tags = r.tags;
-          changed = true;
-        }
-        if ((!existing.difficulty || existing.difficulty === 0) && r.difficulty && r.difficulty > 0) {
-          existing.difficulty = r.difficulty;
-          changed = true;
-        }
-        if (changed) updated++;
-      } else {
-        index[key] = problems.length;
-        problems.push({ ...r, id: r.platform + '-' + r.problemId + '-' + r.date.replace(/-/g,'') });
-        added++;
-      }
-    }
-    save();
-    const msg = added > 0 || updated > 0 ? (added > 0 ? `已加载 ${added} 条新记录` : '') + (updated > 0 ? `，${updated} 条已更新标签` : '') : '数据已是最新';
-    toast(msg);
-  } catch (e) {
-    console.error('loadFromServer:', e);
-  }
-}
-function saveToStorage() { save(); }  // alias for existing save()
+function destroyChart(key){if(charts[key]){charts[key].destroy();delete charts[key];}}
 
+function renderOverview(){const total=problems.length,uniqueSet=new Set(problems.map(p=>p.platform+'::'+p.problemId)),uniqueCnt=uniqueSet.size;if(total===0){document.getElementById('stats-row').innerHTML='<div class="stat-card"><div class="num">0</div><div class="label">暂无数据</div></div>';document.getElementById('heatmap').innerHTML='<div class="nodata">暂无数据</div>';return;}const acCnt=problems.filter(p=>normalizeResult(p.result)==='AC').length,acRate=total>0?(acCnt/total*100).toFixed(1):'0';const now=new Date(),weekAgo=new Date(now-7*86400000),weekCnt=problems.filter(p=>new Date(p.date)>=weekAgo).length;const dateSet=new Set(problems.map(p=>p.date));let streak=0;const d=new Date(now);while(dateSet.has(d.toISOString().slice(0,10))){streak++;d.setDate(d.getDate()-1);}document.getElementById('stats-row').innerHTML='<div class="stat-card"><div class="num">'+uniqueCnt+'</div><div class="label">做题数（去重）</div></div><div class="stat-card"><div class="num">'+total+'</div><div class="label">总提交数</div></div><div class="stat-card"><div class="num">'+acRate+'%</div><div class="label">AC 率</div></div><div class="stat-card"><div class="num">'+weekCnt+'</div><div class="label">近7天提交</div></div><div class="stat-card"><div class="num">'+streak+'</div><div class="label">连续打卡天数</div></div>';renderHeatmap(dateSet);renderPlatformPie();renderTrend();renderResultDist();}
 
-// ==================== TAGS ====================
-function getAllTags() {
-  const s = new Set();
-  problems.forEach(p => p.tags.forEach(t => { if (t !== '*special') s.add(t); }));
-  return [...s].sort();
-}
+function renderHeatmap(dateSet){const cont=document.getElementById('heatmap'),cells=[],today=new Date();for(let i=364;i>=0;i--){const d=new Date(today-i*86400000),key=d.toISOString().slice(0,10),cnt=problems.filter(p=>p.date===key).length,level=cnt===0?0:cnt===1?1:cnt<=3?2:cnt<=6?3:4;cells.push('<span class="heatmap-cell heatmap-'+level+'" title="'+key+': '+cnt+'题"></span>');}cont.innerHTML=cells.join('');}
 
-function renderTagSelector() {
-  // Dedup by display name: PRESET_TAGS first, then additional from data
-  const displayMap = new Map();
-  PRESET_TAGS.forEach(t => { const d = cnTag(t); if (!displayMap.has(d)) displayMap.set(d, t); });
-  getAllTags().forEach(t => { const d = cnTag(t); if (!displayMap.has(d)) displayMap.set(d, t); });
-  const cont = document.getElementById('tag-select');
-  cont.innerHTML = '';
-  [...displayMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([display, raw]) => {
-    const chip = document.createElement('span');
-    chip.className = 'tag-chip' + (currentTagSelection.includes(raw) ? ' selected' : '');
-    chip.textContent = display;
-    chip.onclick = () => {
-      const idx = currentTagSelection.indexOf(raw);
-      if (idx >= 0) currentTagSelection.splice(idx,1); else currentTagSelection.push(raw);
-      renderTagSelector();
-    };
-    cont.appendChild(chip);
-  });
-}
+function renderPlatformPie(){destroyChart('platform');const cnt={};problems.forEach(p=>{cnt[p.platform]=(cnt[p.platform]||0)+1;});const labels=Object.keys(cnt).map(k=>PLATFORM_NAMES[k]||k),data=Object.values(cnt),ctx=document.getElementById('chart-platform').getContext('2d');charts.platform=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:['#0d9488','#f59e0b','#3b82f6','#10b981','#8b5cf6']}]},options:{plugins:{legend:{position:'bottom'}}}});}
 
-document.getElementById('tag-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const v = e.target.value.trim();
-    if (v && !currentTagSelection.includes(v)) { currentTagSelection.push(v); renderTagSelector(); }
-    e.target.value = '';
-  }
-});
+function renderTrend(){destroyChart('trend');const days=[];for(let i=29;i>=0;i--){const d=new Date(Date.now()-i*86400000);days.push(d.toISOString().slice(0,10));}const data=days.map(d=>problems.filter(p=>p.date===d).length),ctx=document.getElementById('chart-trend').getContext('2d');charts.trend=new Chart(ctx,{type:'bar',data:{labels:days.map(d=>d.slice(5)),datasets:[{data,backgroundColor:'#0d9488',borderRadius:3}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});}
 
-document.getElementById('btn-cancel-edit').addEventListener('click', resetForm);
+function renderResultDist(){destroyChart('result');const order=['AC','WA','TLE','RE','CE','MLE','unsolved'],data=order.map(r=>problems.filter(p=>normalizeResult(p.result)===r).length),colors=['#16a34a','#dc2626','#ca8a04','#ea580c','#7c3aed','#3b82f6','#94a3b8'],ctx=document.getElementById('chart-result').getContext('2d');charts.result=new Chart(ctx,{type:'bar',data:{labels:order.map(r=>RESULT_NAMES[r]),datasets:[{data,backgroundColor:colors,borderRadius:3}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});}
 
-function resetForm() {
-  document.getElementById('f-editId').value = '';
-  document.getElementById('f-platform').value = 'luogu';
-  document.getElementById('f-problemId').value = '';
-  document.getElementById('f-name').value = '';
-  document.getElementById('f-difficulty').value = '';
-  document.getElementById('f-result').value = 'AC';
-  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('f-time').value = '';
-  document.getElementById('f-notes').value = '';
-  currentTagSelection = [];
-  renderTagSelector();
-  document.getElementById('form-title').textContent = '添加做题记录';
-  document.getElementById('btn-cancel-edit').classList.add('hidden');
-}
+function renderAnalysis(){if(problems.length===0){document.getElementById('weak-top5').innerHTML='<div class="nodata">暂无数据，请先同步账号或添加记录</div>';return;}renderTagACChart();renderDiffChart();renderPlatformRadar();renderWeakTop5();}
 
-// ==================== CRUD ====================
-function uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function renderTagACChart(){destroyChart('tagac');const tagMap={};problems.forEach(p=>{(p.tags||[]).forEach(t=>{if(t==='*special')return;const key=cnTag(t);if(!tagMap[key])tagMap[key]={total:0,ac:0};tagMap[key].total++;if(normalizeResult(p.result)==='AC')tagMap[key].ac++;});});const entries=Object.entries(tagMap).map(([tag,v])=>({tag,rate:v.ac/v.total,ac:v.ac,total:v.total}));entries.sort((a,b)=>a.rate-b.rate);if(entries.length===0){document.getElementById('chart-tag-ac').parentElement.innerHTML='<div class="card-header">标签 AC 率排名</div><div class="nodata">暂无标签数据</div>';return;}const ctx=document.getElementById('chart-tag-ac').getContext('2d');charts.tagac=new Chart(ctx,{type:'bar',data:{labels:entries.map(e=>cnTag(e.tag)),datasets:[{label:'AC率',data:entries.map(e=>(e.rate*100).toFixed(1)),backgroundColor:entries.map(e=>e.rate<0.5?'rgba(220,38,38,.65)':e.rate<0.75?'rgba(202,138,4,.65)':'rgba(22,163,74,.65)'),borderRadius:3}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+'% - '+cnTag(entries[ctx.dataIndex].tag)+' ('+entries[ctx.dataIndex].ac+'/'+entries[ctx.dataIndex].total+')'},title:ctx=>cnTag(entries[ctx[0].dataIndex].tag)}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}});}
 
-function collectForm() {
-  return {
-    id: document.getElementById('f-editId').value || uuid(),
-    platform: document.getElementById('f-platform').value,
-    problemId: document.getElementById('f-problemId').value.trim(),
-    name: document.getElementById('f-name').value.trim(),
-    difficulty: parseInt(document.getElementById('f-difficulty').value) || 0,
-    tags: [...currentTagSelection],
-    result: document.getElementById('f-result').value,
-    date: document.getElementById('f-date').value || new Date().toISOString().slice(0,10),
-    timeSpent: parseInt(document.getElementById('f-time').value) || 0,
-    language: '',
-    notes: document.getElementById('f-notes').value.trim()
-  };
-}
+function renderDiffChart(){destroyChart('diffscatter');const buckets={},diffs=problems.map(p=>p.difficulty||0).filter(d=>d>0),maxDiff=Math.max(...diffs,800);for(let lo=0;lo<=maxDiff+200;lo+=200)buckets[lo]={total:0,ac:0};problems.forEach(p=>{const d=p.difficulty||0;if(d===0)return;const lo=Math.floor(d/200)*200;if(buckets[lo]){buckets[lo].total++;if(normalizeResult(p.result)==='AC')buckets[lo].ac++;}});const entries=Object.entries(buckets).filter(([,v])=>v.total>0);if(entries.length===0){document.getElementById('chart-diff-scatter').parentElement.innerHTML='<div class="card-header">难度-通过率</div><div class="nodata">暂无难度数据</div>';return;}const ctx=document.getElementById('chart-diff-scatter').getContext('2d');charts.diffscatter=new Chart(ctx,{type:'scatter',data:{datasets:[{label:'AC率',data:entries.map(([lo,v])=>({x:Number(lo)+100,y:parseFloat((v.ac/v.total*100).toFixed(1))})),backgroundColor:entries.map(([,v])=>v.ac/v.total<0.5?'#dc2626':v.ac/v.total<0.75?'#ca8a04':'#16a34a'),pointRadius:Math.max(6,Math.min(14,300/entries.length))}]},options:{plugins:{tooltip:{callbacks:{label:ctx=>ctx.raw.x+'分: '+ctx.raw.y+'% ('+entries[ctx.dataIndex].ac+'/'+entries[ctx.dataIndex].total+')'}}},scales:{x:{title:{display:true,text:'难度分'}},y:{title:{display:true,text:'AC率'},beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}});}
 
-document.getElementById('btn-save').addEventListener('click', () => {
-  const p = collectForm();
-  if (!p.problemId) { toast('题号不能为空','error'); return; }
-  const editId = document.getElementById('f-editId').value;
-  if (editId) {
-    const idx = problems.findIndex(x => x.id === editId);
-    if (idx >= 0) { problems[idx] = p; toast('已更新'); }
-  } else {
-    problems.unshift(p);
-    toast('已添加');
-  }
-  save(); resetForm(); renderAll();
-});
+function renderPlatformRadar(){destroyChart('platformradar');const platMap={};problems.forEach(p=>{if(!platMap[p.platform])platMap[p.platform]={total:0,ac:0};platMap[p.platform].total++;if(normalizeResult(p.result)==='AC')platMap[p.platform].ac++;});const plats=Object.keys(platMap),canvasEl=document.getElementById('chart-platform-radar');if(plats.length<2){canvasEl.style.display='none';canvasEl.parentElement.appendChild(Object.assign(document.createElement('div'),{className:'nodata',textContent:'需要至少两个平台的数据'}));return;}canvasEl.style.display='';const ctx=canvasEl.getContext('2d');charts.platformradar=new Chart(ctx,{type:'radar',data:{labels:plats.map(k=>PLATFORM_NAMES[k]||k),datasets:[{label:'AC率',data:plats.map(k=>parseFloat((platMap[k].ac/platMap[k].total*100).toFixed(1))),backgroundColor:'rgba(13,148,136,.15)',borderColor:'#0d9488',pointBackgroundColor:'#0d9488'}]},options:{scales:{r:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}});}
 
-function editProblem(id) {
-  const p = problems.find(x => x.id === id);
-  if (!p) return;
-  document.getElementById('f-editId').value = p.id;
-  document.getElementById('f-platform').value = p.platform;
-  document.getElementById('f-problemId').value = p.problemId;
-  document.getElementById('f-name').value = p.name;
-  document.getElementById('f-difficulty').value = p.difficulty;
-  document.getElementById('f-result').value = p.result;
-  document.getElementById('f-date').value = p.date;
-  document.getElementById('f-time').value = p.timeSpent || '';
-  document.getElementById('f-notes').value = p.notes || '';
-  currentTagSelection = [...(p.tags || [])];
-  renderTagSelector();
-  document.getElementById('form-title').textContent = '编辑做题记录';
-  document.getElementById('btn-cancel-edit').classList.remove('hidden');
-  document.getElementById('section-records').scrollIntoView({ behavior:'smooth' });
-}
+function renderWeakTop5(){const tagMap={};problems.forEach(p=>{(p.tags||[]).forEach(t=>{if(t==='*special')return;const key=cnTag(t);if(!tagMap[key])tagMap[key]={total:0,ac:0,wa:0,tle:0,re:0};tagMap[key].total++;const nr=normalizeResult(p.result);if(nr==='AC')tagMap[key].ac++;else if(nr==='WA')tagMap[key].wa++;else if(nr==='TLE')tagMap[key].tle++;else if(nr==='RE')tagMap[key].re++;});});const entries=Object.entries(tagMap).map(([tag,v])=>({tag,rate:v.ac/v.total,...v})).filter(e=>e.total>=2).sort((a,b)=>a.rate-b.rate).slice(0,5);const cont=document.getElementById('weak-top5');if(entries.length===0){cont.innerHTML='<div class="weak-none">标签数据不足（AtCoder 无标签，洛谷/CF 同步后会出现），多刷几道题再来分析吧</div>';return;}const sizes=[130,115,100,90,80],colors=['#dc2626','#ef4444','#f97316','#f59e0b','#eab308'];cont.innerHTML='<div class="bubble-row">'+entries.map((e,i)=>'<div class="bubble" style="width:'+sizes[i]+'px;height:'+sizes[i]+'px;background:'+colors[i]+';animation-delay:'+(i*0.1)+'s" title="AC '+e.ac+'/'+e.total+' | WA '+e.wa+' | TLE '+e.tle+' | RE '+e.re+'"><span class="bubble-rank">#'+(i+1)+'</span><span class="bubble-tag">'+cnTag(e.tag)+'</span><span class="bubble-rate">'+(e.rate*100).toFixed(0)+'%</span></div>').join('')+'</div>';}
 
-function deleteProblem(id) {
-  if (!confirm('确定删除这条记录？')) return;
-  problems = problems.filter(x => x.id !== id);
-  save(); renderAll(); toast('已删除');
-}
+document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));tab.classList.add('active');const name=tab.dataset.tab;document.getElementById('section-'+name).classList.add('active');if(name==='overview')renderOverview();if(name==='analysis')renderAnalysis();if(name==='accounts')renderAccounts();if(name==='report')renderReportConfig();});});
+function renderAll(){renderTable();updateFilterTags();renderTagSelector();const activeTab=document.querySelector('.tab.active').dataset.tab;if(activeTab==='overview')renderOverview();if(activeTab==='analysis')renderAnalysis();}
 
-// ==================== RENDER RECORDS ====================
-function difficultyClass(v) {
-  if (!v) return '';
-  if (v <= 1200) return 'diff-easy';
-  if (v <= 2000) return 'diff-med';
-  return 'diff-hard';
-}
+async function runEngineAnalysis(){const status=document.getElementById('engine-analyze-status'),container=document.getElementById('engine-report');status.textContent='分析中...';status.style.color='var(--text-muted)';container.innerHTML='';try{const resp=await fetch(SERVER+'/api/accounts/bind');const data=await resp.json();const accounts=data.accounts||{};const platforms=Object.keys(accounts);if(platforms.length===0){status.textContent='无已绑定账户，请先在「账户绑定」页面绑定';status.style.color='var(--red)';return;}let allHtml='';for(const platform of platforms){const username=accounts[platform].username;if(!username)continue;try{const aResp=await fetch(SERVER+'/api/v2/analysis-v2/'+platform+'/'+encodeURIComponent(username));const report=await aResp.json();if(report.error){allHtml+='<div style="color:var(--text-muted);margin-bottom:8px;">'+(PLATFORM_NAMES[platform]||platform)+' ('+username+'): '+report.error+'</div>';}else{allHtml+=renderEngineReport(report,platform,username);}}catch(e){allHtml+='<div style="color:var(--red);margin-bottom:8px;">'+(PLATFORM_NAMES[platform]||platform)+' ('+username+'): 请求失败 - '+e.message+'</div>';}}container.innerHTML=allHtml||'<div class="nodata">暂无分析结果</div>';status.textContent='分析完成';status.style.color='var(--green)';}catch(e){status.textContent='分析失败: '+e.message;status.style.color='var(--red)';}}
 
-function getFiltered() {
-  const fp = document.getElementById('filter-platform').value;
-  const fr = document.getElementById('filter-result').value;
-  const ft = document.getElementById('filter-tag').value;
-  const fs = document.getElementById('filter-search').value.toLowerCase();
-  return problems.filter(p => {
-    if (fp && p.platform !== fp) return false;
-    if (fr && normalizeResult(p.result) !== fr) return false;
-    if (ft && !(p.tags || []).includes(ft)) return false;
-    if (fs && !(p.problemId||'').toLowerCase().includes(fs) && !(p.name||'').toLowerCase().includes(fs)) return false;
-    return true;
-  });
-}
+function renderEngineReport(report,platform,username){const m=report.metrics||{},weaknesses=report.weaknesses||[],strengths=report.strengths||[],unstarted=report.unstarted_tags||[],recs=report.recommendations||[],summary=report.summary||{},pname=PLATFORM_NAMES[platform]||platform;let html='<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border);">';html+='<div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:12px;">'+pname+' &middot; '+username+'</div>';if(summary.overview){html+='<div class="engine-summary">'+summary.overview+'</div>';html+='<div style="font-size:12px;margin-bottom:12px;"><span class="highlight-good">'+(summary.strengths_summary||'')+'</span> &nbsp;|&nbsp; <span class="highlight-bad">'+(summary.weaknesses_summary||'')+'</span></div>';}html+='<div class="metric-grid">';const metrics=[{k:'pass_rate',label:'总体通过率',fmt:v=>(v*100).toFixed(1)+'%'},{k:'avg_attempts',label:'平均尝试次数',fmt:v=>v.toFixed(1)+'次'},{k:'give_up_rate',label:'放弃率',fmt:v=>(v*100).toFixed(1)+'%'},{k:'regression_rate',label:'回归率',fmt:v=>(v*100).toFixed(1)+'%'},{k:'one_shot_ac_rate',label:'一发入魂',fmt:v=>(v*100).toFixed(1)+'%'},{k:'tag_coverage',label:'标签覆盖度',fmt:v=>(v*100).toFixed(1)+'%'},{k:'result_distribution',label:'AC/总提交',fmt:v=>(m.ac_problems||0)+'/'+(m.total_submissions||0)}];metrics.forEach(met=>{const val=m[met.k]!==undefined?met.fmt(m[met.k]):'-';html+='<div class="metric-card"><div class="metric-value">'+val+'</div><div class="metric-label">'+met.label+'</div></div>';});html+='</div>';if(weaknesses.length>0){html+='<h5 style="font-size:14px;color:var(--red);margin-bottom:8px;">薄弱知识点（'+weaknesses.length+'个）</h5>';weaknesses.forEach(w=>{html+='<div class="weakness-card"><div class="w-tag">'+w.tag+'</div><div class="w-rules">';const ruleLabels={pass_rate:'通过率低',efficiency:'效率低',trend:'趋势下降'};w.triggered_rules.forEach(r=>{const cls=r==='pass_rate'?'rule-badge-pass':r==='efficiency'?'rule-badge-eff':'rule-badge-trend';html+='<span class="w-rule-badge '+cls+'">'+(ruleLabels[r]||r)+'</span>';});html+='</div><div class="w-data">';if(w.pass_rate_detail){const d=w.pass_rate_detail;html+='通过率: <b>'+(d.rate*100).toFixed(1)+'%</b> ('+d.ac+'/'+d.total+') &lt; 阈值 '+(d.threshold*100).toFixed(0)+'% &nbsp;';}if(w.efficiency_detail){const d=w.efficiency_detail;html+='平均尝试: <b>'+d.avg_attempts+'次</b> (阈值 '+d.attempts_threshold+'次) &nbsp;';if(d.avg_time_minutes>0)html+='平均耗时: <b>'+d.avg_time_minutes.toFixed(0)+'分钟</b> (阈值 '+d.time_threshold.toFixed(0)+'分钟) &nbsp;';}if(w.trend_detail){const d=w.trend_detail;if(d.ratio!==null&&d.ratio!==undefined)html+='前后区正确率比: <b>'+d.ratio.toFixed(2)+'</b> &lt; '+d.ratio_threshold+' &nbsp;';if(d.slope!==null&&d.slope!==undefined)html+='学习斜率: <b>'+d.slope.toFixed(4)+'</b> &lt; '+d.slope_threshold+' &nbsp;';}html+='</div></div>';});}if(strengths.length>0){html+='<h5 style="font-size:14px;color:var(--green);margin:14px 0 8px;">优势标签（Top '+Math.min(3,strengths.length)+'）</h5><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">';strengths.slice(0,5).forEach(s=>{html+='<span style="background:var(--green-bg);color:var(--green);padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;">'+s.tag+' '+(s.rate*100).toFixed(0)+'%</span>';});html+='</div>';}if(unstarted.length>0){html+='<h5 style="font-size:14px;color:#3b82f6;margin:14px 0 8px;">尚未掌握（通过率=0）</h5><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">';unstarted.forEach(u=>{html+='<span style="background:#eff6ff;color:#3b82f6;padding:3px 8px;border-radius:4px;font-size:11px;">'+(u.tag||u.tag_raw)+' ('+u.total+'题)</span>';});html+='</div>';}if(recs.length>0){html+='<h5 style="font-size:14px;color:var(--text-primary);margin:14px 0 8px;">改进建议</h5>';recs.slice(0,8).forEach(r=>{html+='<div class="rec-card '+r.priority+'"><div class="rec-tag">'+r.tag+' <span style="font-size:10px;color:var(--text-muted);">['+(r.priority==='high'?'优先':r.priority==='medium'?'关注':'留意')+']</span></div>';(r.advice||[]).forEach(a=>{html+='<div style="margin-top:4px;">&rarr; '+a+'</div>';});html+='</div>';});}html+='</div>';return html;}
+document.getElementById('btn-engine-analyze').addEventListener('click',runEngineAnalysis);
 
-function renderTable() {
-  const filtered = getFiltered();
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
-  if (currentPage > totalPages) currentPage = totalPages;
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const page = filtered.slice(start, start + PAGE_SIZE);
+function init(){load();resetForm();renderAll();document.getElementById('btn-cancel-edit').classList.add('hidden');['cf','at','lg'].forEach(k=>{const v=localStorage.getItem('sync_handle_'+k),el=document.getElementById('sync-'+k);if(v&&el)el.value=v;});const savedCookie=localStorage.getItem('sync_lg_cookie'),cookieEl=document.getElementById('sync-lg-cookie');if(savedCookie&&cookieEl)cookieEl.value=savedCookie;['cf','at','lg'].forEach(k=>{const el=document.getElementById('sync-'+k);if(el)el.addEventListener('change',function(){localStorage.setItem('sync_handle_'+k,this.value);});});if(cookieEl)cookieEl.addEventListener('change',function(){localStorage.setItem('sync_lg_cookie',this.value);});}
 
-  const tbody = document.getElementById('problem-tbody');
-  if (page.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="nodata">暂无记录，使用上方"账号同步"拉取或手动添加</td></tr>';
-  } else {
-    tbody.innerHTML = page.map(p => {
-      const diffCls = difficultyClass(p.difficulty);
-      return `<tr>
-        <td>${PLATFORM_NAMES[p.platform] || p.platform}</td>
-        <td>${p.problemId || '-'}</td>
-        <td>${p.name || '-'}</td>
-        <td>${p.difficulty ? `<span class="diff-span ${diffCls}">${p.difficulty}</span>` : '-'}</td>
-        <td>${[...new Set((p.tags || []).filter(t => t !== '*special').map(t => cnTag(t)))].map(cn => `<span class="tag-chip selected" style="pointer-events:none;font-size:11px;">${cn}</span>`).join(' ')}</td>
-        <td><span class="result-badge result-${normalizeResult(p.result)}">${RESULT_NAMES[normalizeResult(p.result)] || normalizeResult(p.result)}</span></td>
-        <td>${p.date}</td>
-        <td>${p.language ? normalizeLanguage(p.language) : (p.timeSpent ? p.timeSpent+'分' : '-')}</td>
-        <td>
-          <button class="btn btn-outline btn-sm" onclick="editProblem('${p.id}')">编辑</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteProblem('${p.id}')">删除</button>
-        </td>
-      </tr>`;
-    }).join('');
-  }
+async function renderAccounts(){const listEl=document.getElementById('bound-accounts-list');try{const resp=await fetch(SERVER+'/api/accounts/bind');const data=await resp.json();const accounts=data.accounts||{},entries=Object.entries(accounts);if(entries.length===0){listEl.innerHTML='<div style="color:var(--text-muted);font-size:13px;">暂无绑定账户，请在下方绑定</div>';}else{listEl.innerHTML=entries.map(([plat,acc])=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-sidebar);border-radius:var(--radius-sm);margin-bottom:6px;border:1px solid var(--border);"><div><span style="font-weight:600;color:var(--text-primary);">'+plat+'</span><span style="color:var(--text-secondary);margin-left:8px;">'+acc.username+'</span><span style="color:var(--text-muted);font-size:11px;margin-left:6px;">'+(acc.cookie||'')+'</span></div><button class="btn btn-danger btn-sm" onclick="unbindAccount(\''+plat+'\')">解绑</button></div>').join('');}}catch(e){listEl.innerHTML='<div style="color:var(--red);">加载失败: '+e.message+'</div>';}}
+async function bindAccount(){const platform=document.getElementById('bind-platform').value,username=document.getElementById('bind-username').value.trim(),cookie=document.getElementById('bind-cookie').value.trim();if(!username){toast('请输入用户名');return;}const st=document.getElementById('bind-status');st.textContent='绑定中...';try{const resp=await fetch(SERVER+'/api/accounts/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform,username,cookie})});const data=await resp.json();if(data.ok){st.textContent='已绑定 '+platform+': '+username;st.style.color='var(--green)';document.getElementById('bind-username').value='';document.getElementById('bind-cookie').value='';renderAccounts();}else{st.textContent='失败: '+(data.message||'未知');st.style.color='var(--red)';}}catch(e){st.textContent='请求失败: '+e.message;st.style.color='var(--red)';}}
+async function unbindAccount(platform){try{await fetch(SERVER+'/api/accounts/bind/'+platform,{method:'DELETE'});renderAccounts();}catch(e){toast('解绑失败: '+e.message);}}
+document.addEventListener('DOMContentLoaded',()=>{const btnBind=document.getElementById('btn-bind');if(btnBind)btnBind.addEventListener('click',bindAccount);});
 
-  const pag = document.getElementById('pagination');
-  if (totalPages <= 1) { pag.innerHTML = ''; return; }
-  let html = '';
-  for (let i = 1; i <= totalPages; i++) {
-    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
-  }
-  pag.innerHTML = html;
-}
+async function loadBoundSummary(){try{const resp=await fetch(SERVER+'/api/accounts/bind');const data=await resp.json();const accs=data.accounts||{},entries=Object.entries(accs),el=document.getElementById('bound-summary');if(el){if(entries.length===0){el.innerHTML='<span style="color:var(--orange);">暂无绑定账户，请先到「账户绑定」页面添加平台账户</span>';}else{el.innerHTML=entries.map(([p,a])=>'<span style="margin-right:12px;"><b>'+p+'</b>: '+a.username+'</span>').join('');}return entries.length;}return 0;}catch(e){return 0;}}
+async function syncAllBound(){const st=document.getElementById('sync-status'),bar=document.getElementById('sync-progress-bar'),fill=document.getElementById('sync-progress-fill');if(!st)return;st.textContent='启动同步...';st.style.color='var(--text-secondary)';try{const resp=await fetch(SERVER+'/api/v2/sync-all',{method:'POST'});const data=await resp.json();if(!data.ok||!data.task_id){st.textContent='同步失败: '+(data.message||'');st.style.color='var(--red)';return;}bar.style.display='block';fill.style.width='0%';fill.textContent='0%';const poll=setInterval(async()=>{try{const r=await fetch(SERVER+'/api/v2/crawl/progress/'+data.task_id);const p=await r.json();const pct=Math.round((p.progress||0)*100);fill.style.width=pct+'%';fill.textContent=pct+'%';st.textContent=p.message||'';st.style.color='var(--text-secondary)';if(p.status==='done'){clearInterval(poll);fill.style.width='100%';fill.textContent='完成!';st.textContent=p.message||'同步完成';st.style.color='var(--green)';bar.style.display='none';loadBoundSummary();await loadFromServer();renderAll();}else if(p.status==='failed'){clearInterval(poll);st.textContent='同步失败: '+(p.error||'');st.style.color='var(--red)';bar.style.display='none';}}catch(e){clearInterval(poll);st.textContent='进度查询失败: '+e.message;st.style.color='var(--red)';bar.style.display='none';}},800);}catch(e){st.textContent='同步失败: '+e.message;st.style.color='var(--red)';}}
+async function clearAllData(){if(!confirm('确定要清除所有数据吗？此操作不可撤销。'))return;const st=document.getElementById('sync-status');try{const resp=await fetch(SERVER+'/api/clear-data',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const data=await resp.json();st.textContent=data.message||'已清除';st.style.color='var(--green)';problems=[];saveToStorage();renderAll();}catch(e){st.textContent='清除失败: '+e.message;st.style.color='var(--red)';}}
+document.addEventListener('DOMContentLoaded',function(){loadBoundSummary();const btnSync=document.getElementById('btn-sync-all'),btnClear=document.getElementById('btn-clear-data');if(btnSync)btnSync.addEventListener('click',syncAllBound);if(btnClear)btnClear.addEventListener('click',clearAllData);});
 
-function goPage(n) { currentPage = n; renderTable(); }
-
-['filter-platform','filter-result','filter-tag','filter-search'].forEach(id => {
-  document.getElementById(id).addEventListener(id === 'filter-search' ? 'input' : 'change', () => {
-    currentPage = 1;
-    renderTable();
-  });
-});
-
-function updateFilterTags() {
-  const sel = document.getElementById('filter-tag');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">全部标签</option>' + getAllTags().map(t => `<option value="${t}">${cnTag(t)}</option>`).join('');
-  sel.value = cur;
-}
-
-// Export / Import / Clear
-document.getElementById('btn-export').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(problems, null, 2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'problem-records-' + new Date().toISOString().slice(0,10) + '.json';
-  a.click(); toast('导出成功');
-});
-
-document.getElementById('file-import').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (!Array.isArray(data)) throw new Error('格式错误');
-      const added = mergeData(data);
-      save(); renderAll(); toast(`导入 ${data.length} 条，新增 ${added} 条`);
-    } catch(err) { toast('导入失败：' + err.message, 'error'); }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
-
-document.getElementById('btn-clear').addEventListener('click', () => {
-  if (!confirm('确定清空所有数据？此操作不可撤销。建议先导出备份。')) return;
-  problems = [];
-  save(); renderAll(); toast('已清空');
-});
-
-// ==================== CHARTS ====================
-function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
-
-function renderOverview() {
-  const total = problems.length;
-  // Unique problem count (做题数)
-  const uniqueSet = new Set(problems.map(p => p.platform + '::' + p.problemId));
-  const uniqueCnt = uniqueSet.size;
-  if (total === 0) {
-    document.getElementById('stats-row').innerHTML = '<div class="stat-card"><div class="num">0</div><div class="label">暂无数据，请先同步账号</div></div>';
-    document.getElementById('heatmap').innerHTML = '<div class="nodata">暂无数据</div>';
-    return;
-  }
-
-  const acCnt = problems.filter(p => normalizeResult(p.result) === 'AC').length;
-  const acRate = total > 0 ? (acCnt / total * 100).toFixed(1) : '0';
-
-  const now = new Date();
-  const weekAgo = new Date(now - 7*86400000);
-  const weekCnt = problems.filter(p => new Date(p.date) >= weekAgo).length;
-
-  // Streak
-  const dateSet = new Set(problems.map(p => p.date));
-  let streak = 0;
-  const d = new Date(now);
-  while (dateSet.has(d.toISOString().slice(0,10))) { streak++; d.setDate(d.getDate()-1); }
-
-  document.getElementById('stats-row').innerHTML = `
-    <div class="stat-card"><div class="num">${uniqueCnt}</div><div class="label">做题数（去重）</div></div>
-    <div class="stat-card"><div class="num">${total}</div><div class="label">总提交数</div></div>
-    <div class="stat-card"><div class="num">${acRate}%</div><div class="label">AC 率</div></div>
-    <div class="stat-card"><div class="num">${weekCnt}</div><div class="label">近7天提交</div></div>
-    <div class="stat-card"><div class="num">${streak}</div><div class="label">连续打卡天数</div></div>
-  `;
-
-  renderHeatmap(dateSet);
-  renderPlatformPie();
-  renderTrend();
-  renderResultDist();
-}
-
-function renderHeatmap(dateSet) {
-  const cont = document.getElementById('heatmap');
-  const cells = [];
-  const today = new Date();
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(today - i * 86400000);
-    const key = d.toISOString().slice(0,10);
-    const cnt = problems.filter(p => p.date === key).length;
-    const level = cnt === 0 ? 0 : cnt === 1 ? 1 : cnt <= 3 ? 2 : cnt <= 6 ? 3 : 4;
-    cells.push(`<span class="heatmap-cell heatmap-${level}" title="${key}: ${cnt}题"></span>`);
-  }
-  cont.innerHTML = cells.join('');
-}
-
-function renderPlatformPie() {
-  destroyChart('platform');
-  const cnt = {};
-  problems.forEach(p => { cnt[p.platform] = (cnt[p.platform]||0)+1; });
-  const labels = Object.keys(cnt).map(k => PLATFORM_NAMES[k] || k);
-  const data = Object.values(cnt);
-  const ctx = document.getElementById('chart-platform').getContext('2d');
-  charts.platform = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels, datasets: [{ data, backgroundColor: ['#667eea','#f093fb','#4facfe','#43e97b','#fa709a'] }]
-    },
-    options: { plugins: { legend: { position:'bottom' } } }
-  });
-}
-
-function renderTrend() {
-  destroyChart('trend');
-  const days = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.now() - i*86400000);
-    days.push(d.toISOString().slice(0,10));
-  }
-  const data = days.map(d => problems.filter(p => p.date === d).length);
-  const ctx = document.getElementById('chart-trend').getContext('2d');
-  charts.trend = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: days.map(d => d.slice(5)),
-      datasets: [{ data, backgroundColor: '#667eea', borderRadius: 3 }]
-    },
-    options: {
-      plugins: { legend: { display:false } },
-      scales: { y: { beginAtZero:true, ticks:{stepSize:1} } }
-    }
-  });
-}
-
-function renderResultDist() {
-  destroyChart('result');
-  const order = ['AC','WA','TLE','RE','CE','MLE','unsolved'];
-  const data = order.map(r => problems.filter(p => normalizeResult(p.result) === r).length);
-  const colors = ['#27ae60','#e74c3c','#f39c12','#e67e22','#9b59b6','#3498db','#bdc3c7'];
-  const ctx = document.getElementById('chart-result').getContext('2d');
-  charts.result = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: order.map(r => RESULT_NAMES[r]),
-      datasets: [{ data, backgroundColor: colors, borderRadius: 3 }]
-    },
-    options: {
-      plugins: { legend: { display:false } },
-      scales: { y: { beginAtZero:true, ticks:{stepSize:1} } }
-    }
-  });
-}
-
-// ==================== ANALYSIS ====================
-function renderAnalysis() {
-  if (problems.length === 0) {
-    document.getElementById('weak-top5').innerHTML = '<div class="nodata">暂无数据，请先同步账号或添加记录</div>';
-    return;
-  }
-  renderTagACChart();
-  renderDiffChart();
-  renderPlatformRadar();
-  renderWeakTop5();
-}
-
-function renderTagACChart() {
-  destroyChart('tagac');
-  const tagMap = {};
-  problems.forEach(p => {
-    (p.tags || []).forEach(t => {
-      if (t === '*special') return;
-      const key = cnTag(t);
-      if (!tagMap[key]) tagMap[key] = { total:0, ac:0 };
-      tagMap[key].total++;
-      if (normalizeResult(p.result) === 'AC') tagMap[key].ac++;
-    });
-  });
-  const entries = Object.entries(tagMap).map(([tag,v]) => ({ tag, rate: v.ac/v.total, ac: v.ac, total: v.total }));
-  entries.sort((a,b) => a.rate - b.rate);
-
-  if (entries.length === 0) {
-    document.getElementById('chart-tag-ac').parentElement.innerHTML = '<h4>标签 AC 率排名</h4><div class="nodata">暂无标签数据（AtCoder 题目无标签，洛谷/CF 同步后才有）</div>';
-    return;
-  }
-
-  const ctx = document.getElementById('chart-tag-ac').getContext('2d');
-  charts.tagac = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: entries.map(e => cnTag(e.tag)),
-      datasets: [{
-        label: 'AC率', data: entries.map(e => (e.rate*100).toFixed(1)),
-        backgroundColor: entries.map(e => e.rate < 0.5 ? 'rgba(231,76,60,.75)' : e.rate < 0.75 ? 'rgba(243,156,18,.75)' : 'rgba(39,174,96,.75)'),
-        borderRadius: 3
-      }]
-    },
-    options: {
-      plugins: {
-        legend: { display:false },
-        tooltip: { callbacks: { label: ctx => `${ctx.raw}% - ${cnTag(entries[ctx.dataIndex].tag)} (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` }, title: ctx => cnTag(entries[ctx[0].dataIndex].tag) }
-      },
-      scales: { y: { beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } }
-    }
-  });
-}
-
-function renderDiffChart() {
-  destroyChart('diffscatter');
-  const buckets = {};
-  const diffs = problems.map(p => p.difficulty || 0).filter(d => d > 0);
-  const maxDiff = Math.max(...diffs, 800);
-  for (let lo = 0; lo <= maxDiff + 200; lo += 200) {
-    buckets[lo] = { total:0, ac:0 };
-  }
-  problems.forEach(p => {
-    const d = p.difficulty || 0;
-    if (d === 0) return;
-    const lo = Math.floor(d / 200) * 200;
-    if (buckets[lo]) { buckets[lo].total++; if (normalizeResult(p.result)==='AC') buckets[lo].ac++; }
-  });
-  const entries = Object.entries(buckets).filter(([,v]) => v.total > 0);
-
-  if (entries.length === 0) {
-    document.getElementById('chart-diff-scatter').parentElement.innerHTML = '<h4>难度-通过率</h4><div class="nodata">暂无难度数据</div>';
-    return;
-  }
-
-  const ctx = document.getElementById('chart-diff-scatter').getContext('2d');
-  charts.diffscatter = new Chart(ctx, {
-    type: 'scatter',
-    data: {
-      datasets: [{
-        label: 'AC率', data: entries.map(([lo,v]) => ({ x: Number(lo)+100, y: parseFloat((v.ac/v.total*100).toFixed(1)) })),
-        backgroundColor: entries.map(([,v]) => v.ac/v.total < 0.5 ? '#e74c3c' : v.ac/v.total < 0.75 ? '#f39c12' : '#27ae60'),
-        pointRadius: Math.max(6, Math.min(14, 300 / entries.length)),
-      }]
-    },
-    options: {
-      plugins: { tooltip: { callbacks: { label: ctx => `${ctx.raw.x}分: ${ctx.raw.y}% (${entries[ctx.dataIndex].ac}/${entries[ctx.dataIndex].total})` } } },
-      scales: {
-        x: { title: { display:true, text:'难度分' } },
-        y: { title: { display:true, text:'AC率' }, beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} }
-      }
-    }
-  });
-}
-
-function renderPlatformRadar() {
-  destroyChart('platformradar');
-  const platMap = {};
-  problems.forEach(p => {
-    if (!platMap[p.platform]) platMap[p.platform] = { total:0, ac:0 };
-    platMap[p.platform].total++;
-    if (normalizeResult(p.result) === 'AC') platMap[p.platform].ac++;
-  });
-  const plats = Object.keys(platMap);
-  const canvasEl = document.getElementById('chart-platform-radar');
-  if (plats.length < 2) {
-    canvasEl.style.display = 'none';
-    canvasEl.parentElement.querySelector('h4').nextElementSibling && canvasEl.parentElement.appendChild(Object.assign(document.createElement('div'), {className:'nodata', textContent:'需要至少两个平台的数据'}));
-    return;
-  }
-  canvasEl.style.display = '';
-
-  const ctx = canvasEl.getContext('2d');
-  charts.platformradar = new Chart(ctx, {
-    type: 'radar',
-    data: {
-      labels: plats.map(k => PLATFORM_NAMES[k] || k),
-      datasets: [{
-        label: 'AC率', data: plats.map(k => parseFloat((platMap[k].ac/platMap[k].total*100).toFixed(1))),
-        backgroundColor: 'rgba(102,126,234,.2)', borderColor: '#667eea', pointBackgroundColor: '#667eea'
-      }]
-    },
-    options: {
-      scales: { r: { beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } }
-    }
-  });
-}
-
-function renderWeakTop5() {
-  const tagMap = {};
-  problems.forEach(p => {
-    (p.tags || []).forEach(t => {
-      if (t === '*special') return;
-      const key = cnTag(t);
-      if (!tagMap[key]) tagMap[key] = { total:0, ac:0, wa:0, tle:0, re:0 };
-      tagMap[key].total++;
-      const nr = normalizeResult(p.result);
-      if (nr === 'AC') tagMap[key].ac++;
-      else if (nr === 'WA') tagMap[key].wa++;
-      else if (nr === 'TLE') tagMap[key].tle++;
-      else if (nr === 'RE') tagMap[key].re++;
-    });
-  });
-  const entries = Object.entries(tagMap)
-    .map(([tag,v]) => ({ tag, rate: v.ac/v.total, ...v }))
-    .filter(e => e.total >= 2)
-    .sort((a,b) => a.rate - b.rate)
-    .slice(0, 5);
-
-  const cont = document.getElementById('weak-top5');
-  if (entries.length === 0) {
-    cont.innerHTML = '<div class="weak-none">标签数据不足（AtCoder 无标签，洛谷/CF 同步后会出现），多刷几道题再来分析吧</div>';
-    return;
-  }
-  cont.innerHTML = entries.map((e, i) => `
-    <div class="weak-card">
-      <div class="rank">#${i+1}</div>
-      <div class="info">
-        <div class="tag-name">${e.tag_cn || cnTag(e.tag)}</div>
-        <div class="detail">AC ${e.ac} / 总 ${e.total} &nbsp;|&nbsp; WA ${e.wa} TLE ${e.tle} RE ${e.re}</div>
-      </div>
-      <div class="ac-rate">${(e.rate*100).toFixed(0)}%</div>
-    </div>
-  `).join('');
-}
-
-// ==================== TAB SWITCHING ====================
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    tab.classList.add('active');
-    const name = tab.dataset.tab;
-    document.getElementById('section-' + name).classList.add('active');
-    if (name === 'overview') renderOverview();
-    if (name === 'analysis') renderAnalysis();
-    if (name === 'accounts') renderAccounts();
-    if (name === 'report') renderReportConfig();
-  });
-});
-
-// ==================== RENDER ALL ====================
-function renderAll() {
-  renderTable();
-  updateFilterTags();
-  renderTagSelector();
-  const activeTab = document.querySelector('.tab.active').dataset.tab;
-  if (activeTab === 'overview') renderOverview();
-  if (activeTab === 'analysis') renderAnalysis();
-}
-
-// ==================== BEHAVIOR ANALYSIS REPORT ====================
-async function runBehaviorAnalysis() {
-  if (problems.length === 0) {
-    toast('暂无数据，请先同步账号', 'error');
-    return;
-  }
-  const status = document.getElementById('analyze-status');
-  const report = document.getElementById('analyze-report');
-  status.textContent = '分析中...';
-  status.className = 'pending';
-  report.innerHTML = '';
-
-  try {
-    const resp = await fetch(`${SERVER}/api/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(problems),
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.message);
-    renderBehaviorReport(data);
-    status.textContent = '分析完成';
-    status.className = 'ok';
-  } catch (e) {
-    status.textContent = '分析失败: ' + e.message;
-    status.className = 'err';
-  }
-}
-
-function renderBehaviorReport(data) {
-  const report = document.getElementById('analyze-report');
-  const b = data.behavior || {};
-  const wr = data.weakness_ranking || [];
-  const sg = data.suggestions || [];
-
-  // Helper: render issue list
-  const issues = (list, cls) => list.map(s => `<div class="report-issue${cls ? ' ' + cls : ''}">${s}</div>`).join('');
-
-  // Section 1: Behavior profile
-  let html = '<div class="report-section">';
-  html += '<h5>一、个人刷题行为与思维短板</h5>';
-  html += `<div class="report-summary">${b.summary || ''}</div>`;
-  html += '<div style="margin-top:8px;">';
-  if (b.coding && b.coding.length) {
-    html += '<div style="font-size:13px;font-weight:600;color:#e74c3c;margin-bottom:4px;">编码习惯问题</div>';
-    html += issues(b.coding);
-  }
-  if (b.algorithm && b.algorithm.length) {
-    html += '<div style="font-size:13px;font-weight:600;color:#f39c12;margin:10px 0 4px;">算法思维问题</div>';
-    html += issues(b.algorithm);
-  }
-  if (b.learning && b.learning.length) {
-    html += '<div style="font-size:13px;font-weight:600;color:#9b59b6;margin:10px 0 4px;">学习习惯问题</div>';
-    html += issues(b.learning);
-  }
-  html += '</div></div>';
-
-  // Section 2: Weakness ranking table
-  html += '<div class="report-section">';
-  html += '<h5>二、知识点薄弱排名（加权得分）</h5>';
-  const topWr = wr.slice(0, 10);
-  if (topWr.length === 0) {
-    html += '<div class="nodata">暂无标签数据（AtCoder 无标签，洛谷需输入 Cookie 同步），无法做标签维度分析</div>';
-  } else {
-    const maxScore = Math.max(1, topWr[0]?.score || 1);
-    html += '<table class="report-rank-table"><thead><tr><th>排名</th><th>知识点</th><th>得分</th><th>AC率</th><th>题目数</th><th>错误分布</th><th>问题类型</th></tr></thead><tbody>';
-    topWr.forEach((item, i) => {
-      const pct = Math.min(100, Math.round(item.score / maxScore * 100));
-      const errs = item.error_detail || {};
-      const errParts = [];
-      if (errs.WA) errParts.push(`WA:${errs.WA}`);
-      if (errs.TLE) errParts.push(`TLE:${errs.TLE}`);
-      if (errs.RE) errParts.push(`RE:${errs.RE}`);
-      if (errs.CE) errParts.push(`CE:${errs.CE}`);
-
-      let issues = [];
-      if (item.blind_count > 2) issues.push('盲目提交');
-      if (item.suspected_copy > 0) issues.push('疑似抄袭');
-      if (item.suspected_reference > 0) issues.push('疑似参考题解');
-      if (item.ac_rate < 0.3) issues.push('通过率极低');
-      if (item.ac_rate < 0.5 && item.total >= 5) issues.push('半数学不会');
-
-      html += `<tr>
-        <td>#${i + 1}</td>
-        <td><b>${item.tag}</b></td>
-        <td><b style="color:#e74c3c">${item.score}</b><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td>
-        <td>${(item.ac_rate * 100).toFixed(0)}%</td>
-        <td>${item.total}</td>
-        <td style="font-size:11px;">${errParts.join(' ') || '无错误'}</td>
-        <td style="font-size:11px;">${issues.join('、') || '√'}</td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
-  }
-  html += '</div>';
-
-  // Section 3: Suggestions
-  html += '<div class="report-section">';
-  html += '<h5>三、薄弱知识点改进建议</h5>';
-  const topSg = sg.slice(0, 5);
-  if (topSg.length === 0) {
-    html += '<div class="nodata">暂无数据</div>';
-  } else {
-    topSg.forEach(item => {
-      html += `<div style="margin-bottom:10px;padding:8px 12px;background:#fff8f0;border-radius:6px;border-left:3px solid #f39c12;">`;
-      html += `<b>${item.tag}</b> <span style="font-size:11px;color:#999;">(得分:${item.score}, AC率:${item.ac_rate}%, ${item.problem_count}题)</span>`;
-      html += '<ul class="suggestion">';
-      (item.advice || []).forEach(a => { html += `<li>→ ${a}</li>`; });
-      html += '</ul></div>';
-    });
-  }
-  html += '</div>';
-
-  report.innerHTML = html;
-  report.scrollIntoView({ behavior: 'smooth' });
-}
-
-document.getElementById('btn-analyze').addEventListener('click', runBehaviorAnalysis);
-
-// ==================== NEW STRATEGY ENGINE ANALYSIS ====================
-async function runEngineAnalysis() {
-  const status = document.getElementById('engine-analyze-status');
-  const container = document.getElementById('engine-report');
-  status.textContent = '分析中...';
-  container.innerHTML = '';
-
-  try {
-    // Get bound accounts to analyze
-    const resp = await fetch(`${SERVER}/api/accounts/bind`);
-    const data = await resp.json();
-    const accounts = data.accounts || {};
-    const platforms = Object.keys(accounts);
-
-    if (platforms.length === 0) {
-      status.textContent = '无已绑定账户，请先在「账户绑定」页面绑定';
-      status.className = 'err';
-      return;
-    }
-
-    let allHtml = '';
-    for (const platform of platforms) {
-      const username = accounts[platform].username;
-      if (!username) continue;
-      try {
-        const aResp = await fetch(`${SERVER}/api/v2/analysis-v2/${platform}/${encodeURIComponent(username)}`);
-        const report = await aResp.json();
-        if (report.error) {
-          allHtml += `<div style="color:#999;margin-bottom:8px;">${PLATFORM_NAMES[platform] || platform} (${username}): ${report.error}</div>`;
-        } else {
-          allHtml += renderEngineReport(report, platform, username);
-        }
-      } catch (e) {
-        allHtml += `<div style="color:#e74c3c;margin-bottom:8px;">${PLATFORM_NAMES[platform] || platform} (${username}): 请求失败 - ${e.message}</div>`;
-      }
-    }
-
-    container.innerHTML = allHtml || '<div class="nodata">暂无分析结果</div>';
-    status.textContent = '分析完成';
-    status.className = 'ok';
-  } catch (e) {
-    status.textContent = '分析失败: ' + e.message;
-    status.className = 'err';
-  }
-}
-
-function renderEngineReport(report, platform, username) {
-  const m = report.metrics || {};
-  const weaknesses = report.weaknesses || [];
-  const strengths = report.strengths || [];
-  const unstarted = report.unstarted_tags || [];
-  const recs = report.recommendations || [];
-  const summary = report.summary || {};
-  const pname = PLATFORM_NAMES[platform] || platform;
-
-  let html = `<div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #eee;">`;
-  html += `<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:12px;">${pname} · ${username}</div>`;
-
-  // Summary
-  if (summary.overview) {
-    html += `<div class="engine-summary">${summary.overview}</div>`;
-    html += `<div style="font-size:12px;color:#666;margin-bottom:12px;">`;
-    html += `<span style="color:#27ae60;font-weight:600;">${summary.strengths_summary || ''}</span>`;
-    html += ` &nbsp;|&nbsp; <span style="color:#e74c3c;font-weight:600;">${summary.weaknesses_summary || ''}</span>`;
-    html += `</div>`;
-  }
-
-  // Metrics grid
-  html += `<div class="metric-grid">`;
-  const metrics = [
-    {k:'pass_rate', label:'总体通过率', fmt:v => (v*100).toFixed(1)+'%'},
-    {k:'avg_attempts', label:'平均尝试次数', fmt:v => v.toFixed(1)+'次'},
-    {k:'give_up_rate', label:'放弃率', fmt:v => (v*100).toFixed(1)+'%'},
-    {k:'regression_rate', label:'回归率', fmt:v => (v*100).toFixed(1)+'%'},
-    {k:'one_shot_ac_rate', label:'一发入魂', fmt:v => (v*100).toFixed(1)+'%'},
-    {k:'tag_coverage', label:'标签覆盖度', fmt:v => (v*100).toFixed(1)+'%'},
-    {k:'result_distribution', label:'AC/总提交', fmt:v => `${m.ac_problems||0}/${m.total_submissions||0}`},
-  ];
-  metrics.forEach(met => {
-    const val = m[met.k] !== undefined ? met.fmt(m[met.k]) : '-';
-    html += `<div class="metric-card"><div class="metric-value">${val}</div><div class="metric-label">${met.label}</div></div>`;
-  });
-  html += `</div>`;
-
-  // Weaknesses
-  if (weaknesses.length > 0) {
-    html += `<h5 style="font-size:14px;color:#e74c3c;margin-bottom:8px;">薄弱知识点（${weaknesses.length}个）</h5>`;
-    weaknesses.forEach(w => {
-      html += `<div class="weakness-card">`;
-      html += `<div class="w-tag">${w.tag}</div>`;
-
-      // Rule badges
-      html += `<div class="w-rules">`;
-      const ruleLabels = {pass_rate:'通过率低', efficiency:'效率低', trend:'趋势下降'};
-      w.triggered_rules.forEach(r => {
-        const cls = r === 'pass_rate' ? 'rule-badge-pass' : r === 'efficiency' ? 'rule-badge-eff' : 'rule-badge-trend';
-        html += `<span class="w-rule-badge ${cls}">${ruleLabels[r] || r}</span>`;
-      });
-      html += `</div>`;
-
-      // Data evidence
-      html += `<div class="w-data">`;
-      if (w.pass_rate_detail) {
-        const d = w.pass_rate_detail;
-        html += `通过率: <b>${(d.rate*100).toFixed(1)}%</b> (${d.ac}/${d.total}) &lt; 阈值 ${(d.threshold*100).toFixed(0)}% &nbsp;`;
-      }
-      if (w.efficiency_detail) {
-        const d = w.efficiency_detail;
-        html += `平均尝试: <b>${d.avg_attempts}次</b> (阈值 ${d.attempts_threshold}次) &nbsp;`;
-        if (d.avg_time_minutes > 0) html += `平均耗时: <b>${d.avg_time_minutes.toFixed(0)}分钟</b> (阈值 ${d.time_threshold.toFixed(0)}分钟) &nbsp;`;
-      }
-      if (w.trend_detail) {
-        const d = w.trend_detail;
-        if (d.ratio !== null && d.ratio !== undefined) html += `前后区正确率比: <b>${d.ratio.toFixed(2)}</b> &lt; ${d.ratio_threshold} &nbsp;`;
-        if (d.slope !== null && d.slope !== undefined) html += `学习斜率: <b>${d.slope.toFixed(4)}</b> &lt; ${d.slope_threshold} &nbsp;`;
-      }
-      html += `</div>`;
-      html += `</div>`;
-    });
-  }
-
-  // Strengths
-  if (strengths.length > 0) {
-    html += `<h5 style="font-size:14px;color:#27ae60;margin:14px 0 8px;">优势标签（Top ${Math.min(3,strengths.length)}）</h5>`;
-    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">`;
-    strengths.slice(0,5).forEach(s => {
-      html += `<span style="background:#eafaf1;color:#27ae60;padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;">${s.tag} ${(s.rate*100).toFixed(0)}%</span>`;
-    });
-    html += `</div>`;
-  }
-
-  // Unstarted tags
-  if (unstarted.length > 0) {
-    html += `<h5 style="font-size:14px;color:#3498db;margin:14px 0 8px;">尚未掌握（通过率=0，不参与薄弱判定）</h5>`;
-    html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">`;
-    unstarted.forEach(u => {
-      html += `<span style="background:#eef2fb;color:#3498db;padding:3px 8px;border-radius:4px;font-size:11px;">${u.tag || u.tag_raw} (${u.total}题)</span>`;
-    });
-    html += `</div>`;
-  }
-
-  // Recommendations
-  if (recs.length > 0) {
-    html += `<h5 style="font-size:14px;color:#444;margin:14px 0 8px;">改进建议</h5>`;
-    recs.slice(0, 8).forEach(r => {
-      html += `<div class="rec-card ${r.priority}">`;
-      html += `<div class="rec-tag">${r.tag} <span style="font-size:10px;color:#999;">[${r.priority === 'high' ? '优先' : r.priority === 'medium' ? '关注' : '留意'}]</span></div>`;
-      (r.advice || []).forEach(a => { html += `<div style="margin-top:4px;">→ ${a}</div>`; });
-      html += `</div>`;
-    });
-  }
-
-  html += `</div>`;
-  return html;
-}
-
-document.getElementById('btn-engine-analyze').addEventListener('click', runEngineAnalysis);
-
-// ==================== INIT ====================
-function init() {
-  load();
-  resetForm();
-  renderAll();
-  document.getElementById('btn-cancel-edit').classList.add('hidden');
-  // Restore saved handles
-  ['cf','at','lg'].forEach(k => {
-    const v = localStorage.getItem('sync_handle_' + k);
-    if (v) document.getElementById('sync-' + k).value = v;
-  });
-  // Restore saved cookie
-  const savedCookie = localStorage.getItem('sync_lg_cookie');
-  if (savedCookie) document.getElementById('sync-lg-cookie').value = savedCookie;
-  // Save on input
-  ['cf','at','lg'].forEach(k => {
-    document.getElementById('sync-' + k).addEventListener('change', function() {
-      localStorage.setItem('sync_handle_' + k, this.value);
-    });
-  });
-  document.getElementById('sync-lg-cookie').addEventListener('change', function() {
-    localStorage.setItem('sync_lg_cookie', this.value);
-  });
-}
-
-// ==================== ACCOUNT BINDING ====================
-async function renderAccounts() {
-  const listEl = document.getElementById('bound-accounts-list');
-  try {
-    const resp = await fetch(SERVER + '/api/accounts/bind');
-    const data = await resp.json();
-    const accounts = data.accounts || {};
-    const entries = Object.entries(accounts);
-    if (entries.length === 0) {
-      listEl.innerHTML = '<div style="color:#999;font-size:13px;">暂无绑定账户，请在下方绑定</div>';
-    } else {
-      listEl.innerHTML = entries.map(([plat, acc]) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:6px;">
-          <div>
-            <span style="font-weight:600;color:#333;">${plat}</span>
-            <span style="color:#666;margin-left:8px;">${acc.username}</span>
-            <span style="color:#999;font-size:11px;margin-left:6px;">${acc.cookie}</span>
-          </div>
-          <button class="btn" style="padding:4px 12px;font-size:11px;background:#fee;color:#c33;"
-            onclick="unbindAccount('${plat}')">解绑</button>
-        </div>
-      `).join('');
-    }
-  } catch (e) {
-    listEl.innerHTML = '<div style="color:#c33;">加载失败: ' + e.message + '</div>';
-  }
-}
-
-async function bindAccount() {
-  const platform = document.getElementById('bind-platform').value;
-  const username = document.getElementById('bind-username').value.trim();
-  const cookie = document.getElementById('bind-cookie').value.trim();
-  if (!username) { toast('请输入用户名'); return; }
-  const st = document.getElementById('bind-status');
-  st.textContent = '绑定中...';
-  try {
-    const resp = await fetch(SERVER + '/api/accounts/bind', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({platform, username, cookie})
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      st.textContent = '已绑定 ' + platform + ': ' + username;
-      document.getElementById('bind-username').value = '';
-      document.getElementById('bind-cookie').value = '';
-      renderAccounts();
-    } else {
-      st.textContent = '失败: ' + (data.message || '未知');
-    }
-  } catch (e) {
-    st.textContent = '请求失败: ' + e.message;
-  }
-}
-
-async function unbindAccount(platform) {
-  try {
-    await fetch(SERVER + '/api/accounts/bind/' + platform, {method:'DELETE'});
-    renderAccounts();
-  } catch (e) {
-    toast('解绑失败: ' + e.message);
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const btnBind = document.getElementById('btn-bind');
-  if (btnBind) btnBind.addEventListener('click', bindAccount);
-});
-
-// ==================== SYNC FROM BOUND ACCOUNTS ====================
-async function loadBoundSummary() {
-  try {
-    const resp = await fetch(SERVER + '/api/accounts/bind');
-    const data = await resp.json();
-    const accs = data.accounts || {};
-    const entries = Object.entries(accs);
-    const el = document.getElementById('bound-summary');
-    if (el) {
-      if (entries.length === 0) {
-        el.innerHTML = '<span style="color:#e67e22;">暂无绑定账户，请先到「账户绑定」页面添加平台账户</span>';
-      } else {
-        el.innerHTML = entries.map(([p,a]) => `<span style="margin-right:12px;"><b>${p}</b>: ${a.username}</span>`).join('');
-      }
-      return entries.length;
-    }
-    return 0;
-  } catch (e) { return 0; }
-}
-
-async function syncAllBound() {
-  const st = document.getElementById('sync-status');
-  const bar = document.getElementById('sync-progress-bar');
-  const fill = document.getElementById('sync-progress-fill');
-  if (!st) return;
-  st.textContent = '启动同步...';
-  st.style.color = '#666';
-  try {
-    const resp = await fetch(SERVER + '/api/v2/sync-all', { method:'POST' });
-    const data = await resp.json();
-    if (!data.ok || !data.task_id) {
-      st.textContent = '同步失败: ' + (data.message || '');
-      st.style.color = 'red';
-      return;
-    }
-    // Show progress bar
-    bar.style.display = 'block';
-    fill.style.width = '0%';
-    fill.textContent = '0%';
-
-    // Poll progress
-    const poll = setInterval(async () => {
-      try {
-        const r = await fetch(SERVER + '/api/v2/crawl/progress/' + data.task_id);
-        const p = await r.json();
-        const pct = Math.round((p.progress || 0) * 100);
-        fill.style.width = pct + '%';
-        fill.textContent = pct + '%';
-        st.textContent = p.message || '';
-        st.style.color = '#666';
-        if (p.status === 'done') {
-          clearInterval(poll);
-          fill.style.width = '100%';
-          fill.textContent = '完成!';
-          st.textContent = p.message || '同步完成';
-          st.style.color = 'green';
-          bar.style.display = 'none';
-          loadBoundSummary();
-          // 从服务器拉取数据到本地
-          await loadFromServer();
-          renderAll();
-        } else if (p.status === 'failed') {
-          clearInterval(poll);
-          st.textContent = '同步失败: ' + (p.error || '');
-          st.style.color = 'red';
-          bar.style.display = 'none';
-        }
-      } catch (e) {
-        clearInterval(poll);
-        st.textContent = '进度查询失败: ' + e.message;
-        st.style.color = 'red';
-        bar.style.display = 'none';
-      }
-    }, 800);
-  } catch (e) {
-    st.textContent = '同步失败: ' + e.message;
-    st.style.color = 'red';
-  }
-}
-
-async function clearAllData() {
-  if (!confirm('确定要清除所有数据吗？此操作不可撤销。')) return;
-  const st = document.getElementById('sync-status');
-  try {
-    const resp = await fetch(SERVER + '/api/clear-data', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
-    const data = await resp.json();
-    st.textContent = data.message || '已清除';
-    st.style.color = 'green';
-    problems = [];
-    saveToStorage();
-    renderAll();
-  } catch (e) {
-    st.textContent = '清除失败: ' + e.message;
-    st.style.color = 'red';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  loadBoundSummary();
-  const btnSync = document.getElementById('btn-sync-all');
-  const btnClear = document.getElementById('btn-clear-data');
-  if (btnSync) btnSync.addEventListener('click', syncAllBound);
-  if (btnClear) btnClear.addEventListener('click', clearAllData);
-});
-
-// ==================== REPORT CONFIG ====================
-async function renderReportConfig() {
-  try {
-    const resp = await fetch(SERVER + '/api/email-config');
-    const cfg = await resp.json();
-    document.getElementById('cfg-smtp-host').value = cfg.smtp_host || 'smtp.qq.com';
-    document.getElementById('cfg-smtp-port').value = cfg.smtp_port || 587;
-    document.getElementById('cfg-sender-email').value = cfg.sender_email || '';
-    document.getElementById('cfg-sender-password').value = '';
-    document.getElementById('cfg-receiver-email').value = cfg.receiver_email || '';
-    document.getElementById('cfg-schedule-day').value = cfg.schedule_day ?? 1;
-    document.getElementById('cfg-schedule-hour').value = cfg.schedule_hour ?? 9;
-    document.getElementById('cfg-enabled').checked = cfg.enabled || false;
-    document.getElementById('cfg-deepseek-key').value = cfg.deepseek_api_key || '';
-  } catch (e) {
-    console.error('加载邮件配置失败:', e);
-  }
-}
-
-
-async function saveEmailConfig() {
-  const st = document.getElementById('email-status');
-  st.textContent = '保存中...';
-  const cfg = {
-    smtp_host: document.getElementById('cfg-smtp-host').value.trim(),
-    smtp_port: parseInt(document.getElementById('cfg-smtp-port').value) || 587,
-    sender_email: document.getElementById('cfg-sender-email').value.trim(),
-    sender_password: document.getElementById('cfg-sender-password').value,
-    receiver_email: document.getElementById('cfg-receiver-email').value.trim(),
-    schedule_day: parseInt(document.getElementById('cfg-schedule-day').value),
-    schedule_hour: parseInt(document.getElementById('cfg-schedule-hour').value),
-    enabled: document.getElementById('cfg-enabled').checked,
-    deepseek_api_key: document.getElementById('cfg-deepseek-key').value.trim(),
-  };
-  try {
-    const resp = await fetch(SERVER + '/api/email-config', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(cfg)
-    });
-    const data = await resp.json();
-    st.textContent = data.ok ? '已保存' : ('失败: ' + data.message);
-    if (data.ok) st.style.color = 'green';
-  } catch (e) {
-    st.textContent = '失败: ' + e.message;
-    st.style.color = 'red';
-  }
-}
-
-async function testEmail() {
-  const st = document.getElementById('email-status');
-  st.textContent = '发送测试邮件中...';
-  st.style.color = '#666';
-  try {
-    const resp = await fetch(SERVER + '/api/email-config/test', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({})
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      st.textContent = '测试邮件已发送，请检查收件箱';
-      st.style.color = 'green';
-    } else {
-      st.textContent = '失败: ' + (data.message || '');
-      st.style.color = 'red';
-    }
-  } catch (e) {
-    st.textContent = '失败: ' + e.message;
-    st.style.color = 'red';
-  }
-}
-
-async function triggerReport() {
-  const st = document.getElementById('trigger-status');
-  st.textContent = '正在为所有已绑定账户生成周报...';
-  st.style.color = '#666';
-  try {
-    const resp = await fetch(SERVER + '/api/scheduler/trigger', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({platform: 'all'})
-    });
-    const data = await resp.json();
-    st.textContent = data.ok ? '周报已触发！' + (data.accounts||[]).join(', ') : ('失败: ' + data.message);
-    st.style.color = data.ok ? 'green' : 'red';
-  } catch (e) {
-    st.textContent = '失败: ' + e.message;
-    st.style.color = 'red';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const btnSave = document.getElementById('btn-save-email');
-  const btnTest = document.getElementById('btn-test-email');
-  const btnTrigger = document.getElementById('btn-trigger-report');
-  if (btnSave) btnSave.addEventListener('click', saveEmailConfig);
-  if (btnTest) btnTest.addEventListener('click', testEmail);
-  if (btnTrigger) btnTrigger.addEventListener('click', triggerReport);
-});
+async function renderReportConfig(){try{const resp=await fetch(SERVER+'/api/email-config');const cfg=await resp.json();document.getElementById('cfg-smtp-host').value=cfg.smtp_host||'smtp.qq.com';document.getElementById('cfg-smtp-port').value=cfg.smtp_port||587;document.getElementById('cfg-sender-email').value=cfg.sender_email||'';document.getElementById('cfg-sender-password').value='';document.getElementById('cfg-receiver-email').value=cfg.receiver_email||'';document.getElementById('cfg-schedule-day').value=cfg.schedule_day??1;document.getElementById('cfg-schedule-hour').value=cfg.schedule_hour??9;document.getElementById('cfg-enabled').checked=cfg.enabled||false;document.getElementById('cfg-deepseek-key').value=cfg.deepseek_api_key||'';}catch(e){console.error('加载邮件配置失败:',e);}}
+async function saveEmailConfig(){const st=document.getElementById('email-status');st.textContent='保存中...';st.style.color='var(--text-muted)';const cfg={smtp_host:document.getElementById('cfg-smtp-host').value.trim(),smtp_port:parseInt(document.getElementById('cfg-smtp-port').value)||587,sender_email:document.getElementById('cfg-sender-email').value.trim(),sender_password:document.getElementById('cfg-sender-password').value,receiver_email:document.getElementById('cfg-receiver-email').value.trim(),schedule_day:parseInt(document.getElementById('cfg-schedule-day').value),schedule_hour:parseInt(document.getElementById('cfg-schedule-hour').value),enabled:document.getElementById('cfg-enabled').checked,deepseek_api_key:document.getElementById('cfg-deepseek-key').value.trim()};try{const resp=await fetch(SERVER+'/api/email-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});const data=await resp.json();st.textContent=data.ok?'已保存':('失败: '+data.message);st.style.color=data.ok?'var(--green)':'var(--red)';}catch(e){st.textContent='失败: '+e.message;st.style.color='var(--red)';}}
+async function testEmail(){const st=document.getElementById('email-status');st.textContent='发送测试邮件中...';st.style.color='var(--text-muted)';try{const resp=await fetch(SERVER+'/api/email-config/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});const data=await resp.json();if(data.ok){st.textContent='测试邮件已发送，请检查收件箱';st.style.color='var(--green)';}else{st.textContent='失败: '+(data.message||'');st.style.color='var(--red)';}}catch(e){st.textContent='失败: '+e.message;st.style.color='var(--red)';}}
+async function triggerReport(){const st=document.getElementById('trigger-status');st.textContent='正在为所有已绑定账户生成周报...';st.style.color='var(--text-muted)';try{const resp=await fetch(SERVER+'/api/scheduler/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:'all'})});const data=await resp.json();st.textContent=data.ok?'周报已触发！'+(data.accounts||[]).join(', '):('失败: '+data.message);st.style.color=data.ok?'var(--green)':'var(--red)';}catch(e){st.textContent='失败: '+e.message;st.style.color='var(--red)';}}
+document.addEventListener('DOMContentLoaded',()=>{const btnSave=document.getElementById('btn-save-email'),btnTest=document.getElementById('btn-test-email'),btnTrigger=document.getElementById('btn-trigger-report');if(btnSave)btnSave.addEventListener('click',saveEmailConfig);if(btnTest)btnTest.addEventListener('click',testEmail);if(btnTrigger)btnTrigger.addEventListener('click',triggerReport);});
 
 init();
 </script>
 
 <div class="diff-modal-overlay" id="diff-modal">
-  <div class="diff-modal">
-    <button class="close-btn" onclick="hideDiffModal()">&times;</button>
-    <h3>各平台难度规则</h3>
-
-    <h4>洛谷 (Luogu)</h4>
-    <table><thead><tr><th>级别</th><th>称呼</th><th>大致对应 CF 分</th><th>说明</th></tr></thead><tbody>
-      <tr><td>0</td><td>暂无评定</td><td>—</td><td>新题或数据不足</td></tr>
-      <tr><td>1</td><td>入门</td><td>~800</td><td>基础语法、简单输入输出</td></tr>
-      <tr><td>2</td><td>普及−</td><td>~1200</td><td>简单模拟、基础算法</td></tr>
-      <tr><td>3</td><td>普及/提高−</td><td>~1600</td><td>基础数据结构、简单 DP</td></tr>
-      <tr><td>4</td><td>普及+/提高</td><td>~2000</td><td>常见算法综合应用</td></tr>
-      <tr><td>5</td><td>提高+/省选−</td><td>~2400</td><td>较复杂算法、思维题</td></tr>
-      <tr><td>6</td><td>省选/NOI−</td><td>~2800</td><td>高级算法、难题</td></tr>
-      <tr><td>7</td><td>NOI/NOI+/CTSC</td><td>~3200</td><td>国家集训队级别</td></tr>
-    </tbody></table>
-
-    <h4>AtCoder</h4>
-    <table><thead><tr><th>难度分</th><th>颜色</th><th>说明</th></tr></thead><tbody>
-      <tr><td>0 – 399</td><td style="color:#808080">■ 灰</td><td>最简单，适合入门</td></tr>
-      <tr><td>400 – 799</td><td style="color:#804000">■ 棕</td><td>基础算法</td></tr>
-      <tr><td>800 – 1199</td><td style="color:#008000">■ 绿</td><td>常见算法</td></tr>
-      <tr><td>1200 – 1599</td><td style="color:#00C0C0">■ 青</td><td>中等难度</td></tr>
-      <tr><td>1600 – 1999</td><td style="color:#0000FF">■ 蓝</td><td>较难算法</td></tr>
-      <tr><td>2000 – 2399</td><td style="color:#C0C000">■ 黄</td><td>高级算法</td></tr>
-      <tr><td>2400 – 2799</td><td style="color:#FF8000">■ 橙</td><td>难题</td></tr>
-      <tr><td>2800 – 3199</td><td style="color:#FF0000">■ 红</td><td>极难</td></tr>
-      <tr><td>3200+</td><td style="color:#C0C0C0">■ 银/金</td><td>传说级难题</td></tr>
-    </tbody></table>
-
-    <h4>牛客 (NowCoder)</h4>
-    <table><thead><tr><th>难度分</th><th>说明</th></tr></thead><tbody>
-      <tr><td>0 – 1000</td><td>基础题，适合入门学习</td></tr>
-      <tr><td>1000 – 2000</td><td>中等题，需要基本算法知识</td></tr>
-      <tr><td>2000 – 3000</td><td>较难题，竞赛级别</td></tr>
-      <tr><td>3000 – 4000</td><td>难题，省选/区域赛级别</td></tr>
-      <tr><td>4000+</td><td>极难题，ICPC/NOI 级别</td></tr>
-    </tbody></table>
-
-    <h4>Codeforces</h4>
-    <table><thead><tr><th>难度分</th><th>颜色</th><th>说明</th></tr></thead><tbody>
-      <tr><td>800 – 1200</td><td style="color:#808080">■ 灰/绿</td><td>入门，Div.4 / Div.3 A-B</td></tr>
-      <tr><td>1300 – 1600</td><td style="color:#03A89E">■ 青</td><td>基础，Div.2 B-C</td></tr>
-      <tr><td>1700 – 2100</td><td style="color:#0000FF">■ 蓝/紫</td><td>中等，Div.2 D-E</td></tr>
-      <tr><td>2200 – 2600</td><td style="color:#FF8C00">■ 橙</td><td>高级，Div.1 B-C</td></tr>
-      <tr><td>2700+</td><td style="color:#FF0000">■ 红</td><td>极难，Div.1 D+</td></tr>
-    </tbody></table>
-  </div>
+<div class="diff-modal">
+<button class="close-btn" onclick="hideDiffModal()">&times;</button>
+<h3>各平台难度规则</h3>
+<h4>洛谷 (Luogu)</h4>
+<table><thead><tr><th>级别</th><th>称呼</th><th>大致对应 CF 分</th><th>说明</th></tr></thead><tbody>
+<tr><td>0</td><td>暂无评定</td><td>&mdash;</td><td>新题或数据不足</td></tr>
+<tr><td>1</td><td>入门</td><td>~800</td><td>基础语法、简单输入输出</td></tr>
+<tr><td>2</td><td>普及&minus;</td><td>~1200</td><td>简单模拟、基础算法</td></tr>
+<tr><td>3</td><td>普及/提高&minus;</td><td>~1600</td><td>基础数据结构、简单 DP</td></tr>
+<tr><td>4</td><td>普及+/提高</td><td>~2000</td><td>常见算法综合应用</td></tr>
+<tr><td>5</td><td>提高+/省选&minus;</td><td>~2400</td><td>较复杂算法、思维题</td></tr>
+<tr><td>6</td><td>省选/NOI&minus;</td><td>~2800</td><td>高级算法、难题</td></tr>
+<tr><td>7</td><td>NOI/NOI+/CTSC</td><td>~3200</td><td>国家集训队级别</td></tr>
+</tbody></table>
+<h4>AtCoder</h4>
+<table><thead><tr><th>难度分</th><th>颜色</th><th>说明</th></tr></thead><tbody>
+<tr><td>0 &ndash; 399</td><td style="color:#808080">&blk34; 灰</td><td>最简单，适合入门</td></tr>
+<tr><td>400 &ndash; 799</td><td style="color:#804000">&blk34; 棕</td><td>基础算法</td></tr>
+<tr><td>800 &ndash; 1199</td><td style="color:#008000">&blk34; 绿</td><td>常见算法</td></tr>
+<tr><td>1200 &ndash; 1599</td><td style="color:#00C0C0">&blk34; 青</td><td>中等难度</td></tr>
+<tr><td>1600 &ndash; 1999</td><td style="color:#0000FF">&blk34; 蓝</td><td>较难算法</td></tr>
+<tr><td>2000 &ndash; 2399</td><td style="color:#C0C000">&blk34; 黄</td><td>高级算法</td></tr>
+<tr><td>2400 &ndash; 2799</td><td style="color:#FF8000">&blk34; 橙</td><td>难题</td></tr>
+<tr><td>2800 &ndash; 3199</td><td style="color:#FF0000">&blk34; 红</td><td>极难</td></tr>
+<tr><td>3200+</td><td style="color:#C0C0C0">&blk34; 银/金</td><td>传说级难题</td></tr>
+</tbody></table>
+<h4>牛客 (NowCoder)</h4>
+<table><thead><tr><th>难度分</th><th>说明</th></tr></thead><tbody>
+<tr><td>0 &ndash; 1000</td><td>基础题，适合入门学习</td></tr>
+<tr><td>1000 &ndash; 2000</td><td>中等题，需要基本算法知识</td></tr>
+<tr><td>2000 &ndash; 3000</td><td>较难题，竞赛级别</td></tr>
+<tr><td>3000 &ndash; 4000</td><td>难题，省选/区域赛级别</td></tr>
+<tr><td>4000+</td><td>极难题，ICPC/NOI 级别</td></tr>
+</tbody></table>
+<h4>Codeforces</h4>
+<table><thead><tr><th>难度分</th><th>颜色</th><th>说明</th></tr></thead><tbody>
+<tr><td>800 &ndash; 1200</td><td style="color:#808080">&blk34; 灰/绿</td><td>入门，Div.4 / Div.3 A-B</td></tr>
+<tr><td>1300 &ndash; 1600</td><td style="color:#03A89E">&blk34; 青</td><td>基础，Div.2 B-C</td></tr>
+<tr><td>1700 &ndash; 2100</td><td style="color:#0000FF">&blk34; 蓝/紫</td><td>中等，Div.2 D-E</td></tr>
+<tr><td>2200 &ndash; 2600</td><td style="color:#FF8C00">&blk34; 橙</td><td>高级，Div.1 B-C</td></tr>
+<tr><td>2700+</td><td style="color:#FF0000">&blk34; 红</td><td>极难，Div.1 D+</td></tr>
+</tbody></table>
 </div>
-
+</div>
 <script>
-function showDiffModal() { document.getElementById('diff-modal').classList.add('show'); }
-function hideDiffModal() { document.getElementById('diff-modal').classList.remove('show'); }
-document.getElementById('diff-modal').addEventListener('click', function(e) { if (e.target === this) hideDiffModal(); });
+function showDiffModal(){document.getElementById('diff-modal').classList.add('show');}
+function hideDiffModal(){document.getElementById('diff-modal').classList.remove('show');}
+document.getElementById('diff-modal').addEventListener('click',function(e){if(e.target===this)hideDiffModal();});
 </script>
 </body>
 </html>

@@ -1,12 +1,12 @@
 __pycache__/
 *.pyc
 *.pyo
-cache.json
 *.db
 *.db-shm
 *.db-wal
 *.log
+cache.json
+nc_diff_cache.json
 bound_accounts.json
 email_config.json
 .claude/
-__pycache__/
