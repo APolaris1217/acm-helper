@@ -298,6 +298,18 @@ tr:hover td { background: #f8fafc; }
     <div id="sync-status" class="sync-status"></div>
   </div>
 
+  <div class="card" id="ai-tag-card">
+    <div class="card-header">自动补标签 <span style="font-size:11px;font-weight:400;color:var(--text-muted);cursor:pointer;margin-left:6px;" onclick="document.getElementById('ai-reason').classList.toggle('hidden')">&#9660; 为什么需要？</span></div>
+    <div id="ai-reason" class="hidden" style="background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+      洛谷的提交列表 API 和 AtCoder 的提交数据<b>不返回题目标签</b>，同步后大量题目处于无标签状态，导致薄弱分析无法按标签维度统计。
+      同步完成后系统会自动补充标签：<br>
+      <b>1. 洛谷</b> &rarr; 直接爬取题目详情页，页面上已有标签，无需 AI<br>
+      <b>2. 其他平台</b> &rarr; DeepSeek AI 根据题目信息推断标签
+    </div>
+    <p class="card-desc">同步完成后自动为无标签题目补充标签（洛谷直接爬取 + AI 兜底）</p>
+    <div class="sync-inputs"><div class="form-group" style="min-width:300px;"><label>DeepSeek API Key</label><input id="cfg-deepseek-key" type="password" placeholder="sk-..."></div></div>
+  </div>
+
   <div class="card" id="form-card">
     <div class="card-header" id="form-title">添加做题记录</div>
     <div class="form-row">
@@ -423,11 +435,6 @@ tr:hover td { background: #f8fafc; }
       <button class="btn btn-outline" id="btn-test-email">发送测试邮件</button>
       <span id="email-status" style="font-size:12px;color:var(--text-muted);"></span>
     </div>
-  </div>
-  <div class="card" style="margin-top:12px;">
-    <div class="card-header">AI 自动打标签</div>
-    <p class="card-desc">同步完成后自动用 DeepSeek 为无标签题目推断算法标签</p>
-    <div class="sync-inputs"><div class="form-group" style="min-width:300px;"><label>DeepSeek API Key</label><input id="cfg-deepseek-key" type="password" placeholder="sk-..."></div></div>
   </div>
   <div class="card" style="margin-top:12px;">
     <div class="card-header">手动生成周报</div>

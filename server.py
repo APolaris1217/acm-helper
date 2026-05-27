@@ -84,13 +84,137 @@ _CRAWLERS["nowcoder"] = _NowCoderCrawler()
 # --- Tag name mapping ---
 from tag_map import TAG_CN, cn_tag as _cn_tag
 
+# ---- Luogu tag ID -> Chinese name mapping ----
+# From Luogu problem detail pages, tag IDs are numeric.
+_LG_TAG_MAP = {
+    1:"模拟",2:"字符串",3:"排序",4:"搜索",5:"动态规划",
+    6:"数学",7:"贪心",8:"计算几何",9:"图论",10:"数据结构",
+    11:"递推",12:"分治",13:"博弈论",14:"递归",15:"构造",
+    16:"暴力",17:"位运算",18:"随机化",19:"概率",20:"高精度",
+    21:"最短路",22:"生成树",23:"网络流",24:"二分",25:"离散化",
+    26:"并查集",27:"线段树",28:"平衡树",29:"堆",30:"栈",
+    31:"队列",32:"链表",33:"哈希",34:"矩阵",35:"前缀和",
+    36:"差分",37:"双指针",38:"倍增",39:"二分图",40:"强连通分量",
+    41:"拓扑排序",42:"LCA",43:"DFS",44:"BFS",45:"树",
+    46:"树状数组",47:"状压DP",48:"数位DP",49:"树形DP",
+    50:"区间DP",51:"背包",52:"记忆化搜索",53:"剪枝",
+    54:"IDA*",55:"A*",56:"DLX",57:"莫队",58:"线性基",
+    59:"基环树",60:"虚树",61:"点分治",62:"CDQ分治",
+    63:"整体二分",64:"wqs二分",65:"分数规划",
+    66:"单调队列",67:"单调栈",68:"悬线法",69:"扫描线",
+    70:"最值",71:"表达式求值",72:"括号序列",73:"KMP",
+    74:"AC自动机",75:"后缀数组",76:"后缀自动机",77:"回文自动机",
+    78:"Manacher",79:"Trie",80:"哈夫曼树",81:"左偏树",
+    82:"Treap",83:"Splay",84:"LCT",85:"树套树",86:"可持久化线段树",
+    87:"分块",88:"欧拉回路",89:"欧拉路径",90:"差分约束",
+    91:"2-SAT",92:"费用流",93:"上下界网络流",94:"最大流",
+    95:"拓扑",96:"树形数据结构",
+    # Extra range
+    100:"构造",101:"数学",102:"图论",103:"数据结构",104:"字符串",
+    105:"动态规划",106:"贪心",107:"搜索",108:"计算几何",
+    109:"博弈论",110:"分治",111:"组合数学",
+    120:"树",121:"数论",122:"概率",123:"线性代数",
+    200:"数学",201:"图论",202:"数据结构",
+    300:"模拟",301:"数学",302:"图论",303:"数据结构",304:"字符串",
+    305:"动态规划",306:"贪心",307:"搜索",308:"计算几何",
+    309:"博弈论",310:"分治",311:"构造",312:"位运算",
+    350:"二分",351:"前缀和",352:"差分",353:"双指针",
+    400:"排序",401:"递归",
+    500:"暴力",501:"枚举",502:"打表",
+    600:"模拟",601:"字符串",602:"数学",
+}
+_LG_TAG_CACHE = {}  # pid -> [tag_names]
+
+def _scrape_luogu_tags(pid):
+    """Scrape tag names from a Luogu problem detail page.
+
+    Uses the _contentOnly=1 API to get JSON data, extracts tag IDs,
+    and maps them to Chinese tag names.
+    """
+    if pid in _LG_TAG_CACHE:
+        return _LG_TAG_CACHE[pid]
+
+    url = f"https://www.luogu.com.cn/problem/{pid}?_contentOnly=1"
+    headers = {
+        "Accept": "application/json",
+        "Referer": "https://www.luogu.com.cn/",
+        "x-luogu-type": "content-only",
+    }
+    try:
+        r = _cf_get(url, headers=headers, timeout=15)
+        if r.status_code != 200:
+            print(f"  [LG-TAG] {pid}: HTTP {r.status_code}")
+            _LG_TAG_CACHE[pid] = []
+            return []
+
+        data = r.json()
+        problem = None
+        for path in [
+            ["currentData", "problem"],
+            ["data", "problem"],
+        ]:
+            d = data
+            for key in path:
+                d = d.get(key, {}) if isinstance(d, dict) else {}
+            if isinstance(d, dict) and d:
+                problem = d
+                break
+
+        if not problem:
+            print(f"  [LG-TAG] {pid}: cannot find problem data")
+            _LG_TAG_CACHE[pid] = []
+            return []
+
+        tag_ids = problem.get("tags", [])
+        if not isinstance(tag_ids, list):
+            tag_ids = []
+
+        names = []
+        for tid in tag_ids:
+            if isinstance(tid, int) and tid in _LG_TAG_MAP:
+                names.append(_LG_TAG_MAP[tid])
+            elif isinstance(tid, str):
+                # Some API versions return tag objects
+                try:
+                    tid_int = int(tid)
+                    if tid_int in _LG_TAG_MAP:
+                        names.append(_LG_TAG_MAP[tid_int])
+                except ValueError:
+                    pass
+
+        _LG_TAG_CACHE[pid] = names
+        if names:
+            print(f"  [LG-TAG] {pid}: {names}")
+        return names
+
+    except Exception as e:
+        print(f"  [LG-TAG] {pid}: error - {e}")
+        _LG_TAG_CACHE[pid] = []
+        return []
+
+
+def _cn_to_en_tags(cn_tags):
+    """Convert Chinese tag names to English (reverse of TAG_CN)."""
+    from tag_map import TAG_CN
+    en_result = []
+    for cn in cn_tags:
+        found = None
+        for en, cn_name in TAG_CN.items():
+            if cn_name == cn or en == cn:
+                found = en
+                break
+        if found:
+            en_result.append(found)
+        else:
+            en_result.append(cn)  # keep original if no mapping
+    return en_result
+
+
 def _auto_tag_untagged():
-    """Auto-tag all untagged problems using DeepSeek AI."""
+    """Auto-tag untagged problems — scrape Luogu detail pages first, AI as fallback."""
     import json as _j
     try:
-        from ai.deepseek_tagger import auto_tag_batch
         db2 = get_db()
-        # Find all unique untagged problems
         rows = db2.execute(
             "SELECT DISTINCT problem_id, title, platform FROM submissions "
             "WHERE tags='[]' OR tags=''"
@@ -98,34 +222,64 @@ def _auto_tag_untagged():
         if not rows:
             print("  [TAGGER] No untagged problems")
             return
-        # Deduplicate by problem_id
+
         seen = set()
-        problems = []
+        all_problems = []
         for r in rows:
             key = f"{r['platform']}:{r['problem_id']}"
             if key not in seen:
                 seen.add(key)
-                problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
-        print(f"  [TAGGER] Auto-tagging {len(problems)} unique untagged problems...")
-        tag_map = auto_tag_batch(problems)
+                all_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
+
+        # Step 1: Scrape Luogu problem pages for tags (no AI needed)
+        lg_problems = [p for p in all_problems if p["platform"] == "luogu"]
+        ai_problems = [p for p in all_problems if p["platform"] != "luogu"]
         updated = 0
-        for p in problems:
-            pid = p["problem_id"]
-            plat = p["platform"]
-            tags = tag_map.get(pid, [])
-            if tags:
-                tags_json = _j.dumps(tags, ensure_ascii=False)
-                db2.execute(
-                    "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
-                    (tags_json, plat, pid)
-                )
-                updated += db2.total_changes
-        db2.commit()
-        print(f"  [TAGGER] Updated {updated} rows with AI tags")
+
+        if lg_problems:
+            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems...")
+            for p in lg_problems:
+                cn_tags = _scrape_luogu_tags(p["problem_id"])
+                if cn_tags:
+                    en_tags = _cn_to_en_tags(cn_tags)
+                    tags_json = _j.dumps(en_tags, ensure_ascii=False)
+                    db2.execute(
+                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
+                        (tags_json, p["problem_id"])
+                    )
+                    updated += 1
+                else:
+                    ai_problems.append(p)
+            db2.commit()
+            print(f"  [TAGGER] Luogu scrape: {updated} tagged")
+
+        # Step 2: AI fallback for remaining untagged problems
+        if ai_problems:
+            print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems...")
+            from ai.deepseek_tagger import auto_tag_batch
+            tag_map = auto_tag_batch(ai_problems)
+            ai_updated = 0
+            for p in ai_problems:
+                pid = p["problem_id"]
+                plat = p["platform"]
+                tags = tag_map.get(pid, [])
+                if tags:
+                    tags_json = _j.dumps(tags, ensure_ascii=False)
+                    db2.execute(
+                        "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
+                        (tags_json, plat, pid)
+                    )
+                    ai_updated += 1
+            db2.commit()
+            updated += ai_updated
+            print(f"  [TAGGER] AI fallback: {ai_updated} tagged")
+
+        print(f"  [TAGGER] Total updated: {updated}")
     except Exception as e:
         import traceback
         print(f"  [TAGGER] Auto-tag failed: {e}")
         traceback.print_exc()
+
 
 
 def _load_bound_accounts() -> dict:
