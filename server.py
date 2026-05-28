@@ -210,6 +210,132 @@ def _cn_to_en_tags(cn_tags):
     return en_result
 
 
+def _scrape_problem_content(platform, problem_id):
+    """Scrape problem description from platform website for AI tagging.
+
+    Returns a short problem description text, or empty string if unavailable.
+    """
+    if platform == "atcoder":
+        return _scrape_atcoder_content(problem_id)
+    elif platform == "nowcoder":
+        return _scrape_nowcoder_content(problem_id)
+    return ""
+
+
+def _scrape_atcoder_content(problem_id):
+    """Scrape AtCoder problem statement.
+
+    AtCoder problem IDs look like 'abc123_a' or 'arc045_b'.
+    Problem page: https://atcoder.jp/contests/{contest}/tasks/{problem_id}
+    """
+    import re
+    match = re.match(r'([a-z]+)(\d+)_(.+)', problem_id)
+    if not match:
+        print(f"  [AT-SCRAPE] Cannot parse problem_id: {problem_id}")
+        return ""
+
+    contest = f"{match.group(1)}{match.group(2)}"
+    url = f"https://atcoder.jp/contests/{contest}/tasks/{problem_id}"
+
+    try:
+        r = _cf_get(url, headers={"Accept-Language": "en,ja;q=0.9"}, timeout=15)
+        if r.status_code != 200:
+            print(f"  [AT-SCRAPE] {problem_id}: HTTP {r.status_code}")
+            return ""
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Extract problem statement (English version preferred)
+        parts = []
+        # Try en version first
+        en_div = soup.find("div", id="task-statement")
+        if not en_div:
+            en_div = soup.find("div", class_="part")
+            if en_div:
+                en_div = en_div.find_parent("div")
+
+        if en_div:
+            # Remove pre/code blocks to save tokens, keep text description
+            for pre in en_div.find_all(["pre", "code", "var", "img"]):
+                pre.decompose()
+
+            sections = en_div.find_all(["h3", "p", "li", "section"])
+            for s in sections:
+                text = s.get_text(" ", strip=True)
+                if text and len(text) > 5:
+                    parts.append(text)
+
+        content = " ".join(parts[:20])  # Limit to first 20 text fragments
+        if len(content) > 2000:
+            content = content[:2000]
+        if content:
+            print(f"  [AT-SCRAPE] {problem_id}: got {len(content)} chars")
+        return content
+
+    except Exception as e:
+        print(f"  [AT-SCRAPE] {problem_id}: error - {e}")
+        return ""
+
+
+def _scrape_nowcoder_content(problem_id):
+    """Scrape NowCoder problem description.
+
+    Problem page: https://ac.nowcoder.com/acm/problem/{problem_id}
+    Uses the _contentOnly=1 API if available.
+    """
+    import re
+    # Try JSON API first
+    url = f"https://ac.nowcoder.com/acm/problem/{problem_id}?_contentOnly=1"
+    headers = {
+        "Accept": "application/json",
+        "Referer": "https://ac.nowcoder.com/",
+    }
+    try:
+        r = _cf_get(url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            try:
+                data = r.json()
+                # Navigate to problem description
+                problem = None
+                for path in [
+                    ["currentData", "problem"],
+                    ["data", "problem"],
+                ]:
+                    d = data
+                    for key in path:
+                        d = d.get(key, {}) if isinstance(d, dict) else {}
+                    if isinstance(d, dict) and d:
+                        problem = d
+                        break
+
+                if problem:
+                    desc = problem.get("description", "")
+                    if not desc:
+                        # Try concatenating description parts
+                        parts = []
+                        for key in ["title", "description", "input", "output", "hint"]:
+                            if problem.get(key):
+                                parts.append(str(problem[key]))
+                        desc = "\n".join(parts)
+
+                    if desc and len(desc) > 10:
+                        # Strip HTML tags
+                        import re as _re
+                        desc = _re.sub(r'<[^>]+>', ' ', desc)
+                        desc = _re.sub(r'\s+', ' ', desc).strip()
+                        if len(desc) > 2000:
+                            desc = desc[:2000]
+                        print(f"  [NC-SCRAPE] {problem_id}: got {len(desc)} chars (API)")
+                        return desc
+            except Exception:
+                pass  # Fall back to HTML
+    except Exception:
+        pass
+
+    return ""
+
+
 def _auto_tag_untagged():
     """Auto-tag untagged problems — scrape Luogu detail pages first, AI as fallback."""
     import json as _j
@@ -253,9 +379,22 @@ def _auto_tag_untagged():
             db2.commit()
             print(f"  [TAGGER] Luogu scrape: {updated} tagged")
 
-        # Step 2: AI fallback for remaining untagged problems
+        # Step 2: Scrape problem content, then AI fallback
         if ai_problems:
             print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems...")
+            # Scrape problem descriptions for better tagging
+            for p in ai_problems:
+                content = _scrape_problem_content(p["platform"], p["problem_id"])
+                if content:
+                    p["content"] = content
+                # Also attach difficulty if available
+                row = db2.execute(
+                    "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
+                    (p["platform"], p["problem_id"])
+                ).fetchone()
+                if row and row["d"]:
+                    p["difficulty"] = row["d"]
+
             from ai.deepseek_tagger import auto_tag_batch
             tag_map = auto_tag_batch(ai_problems)
             ai_updated = 0

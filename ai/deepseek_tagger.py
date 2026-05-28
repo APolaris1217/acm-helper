@@ -30,29 +30,48 @@ def get_api_key() -> str:
     return ""
 
 
-def auto_tag(problem_titles: list[str]) -> list[list[str]]:
+def auto_tag(problems: list[dict]) -> list[list[str]]:
     """为题目列表自动推断算法标签
 
     Args:
-        problem_titles: 题目名称列表，如 ["P1001 A+B Problem", "2065E - White Magic"]
+        problems: [{"title": "A+B Problem", "content": "题目描述...", "platform": "atcoder", "difficulty": 1200}, ...]
+                  content 字段可选，有则传入题目正文供 AI 分析
 
     Returns:
         [[tag1, tag2], ...] 每个题目的标签列表
     """
     api_key = get_api_key()
     if not api_key:
-        raise Exception("未配置 DeepSeek API Key。请在「周报设置」页面填写 API Key。")
+        raise Exception("未配置 DeepSeek API Key。请在同步弹窗中填写 API Key。")
 
     tag_list = ", ".join(KNOWN_TAGS)
-    titles_text = "\n".join(f"{i+1}. {t}" for i, t in enumerate(problem_titles))
 
-    prompt = f"""你是一名算法竞赛专家。请根据以下题目名称，推断每道题涉及的算法标签。
+    # Build problem list text with content when available
+    lines = []
+    for i, p in enumerate(problems):
+        title = p.get("title", p) if isinstance(p, dict) else str(p)
+        content = p.get("content", "") if isinstance(p, dict) else ""
+        diff = p.get("difficulty", 0) if isinstance(p, dict) else 0
+        plat = p.get("platform", "") if isinstance(p, dict) else ""
+
+        line = f"{i+1}. {title}"
+        extra = []
+        if diff: extra.append(f"难度: {diff}")
+        if plat: extra.append(f"平台: {plat}")
+        if extra: line += f" ({', '.join(extra)})"
+        if content:
+            line += f"\n   题目内容: {content[:1500]}"  # Limit to 1500 chars
+        lines.append(line)
+
+    problems_text = "\n\n".join(lines)
+
+    prompt = f"""你是一名算法竞赛专家。请根据题目信息（标题、难度、题目内容），推断每道题涉及的算法标签。
 
 可选标签（只能从以下列表中选择）：
 {tag_list}
 
 题目列表：
-{titles_text}
+{problems_text}
 
 请返回 JSON 数组，每个元素是对应题目的标签列表（小写英文）：
 ```json
@@ -92,12 +111,12 @@ def auto_tag(problem_titles: list[str]) -> list[list[str]]:
     return json.loads(content)
 
 
-def auto_tag_batch(problems: list[dict], batch_size: int = 20) -> dict[str, list[str]]:
+def auto_tag_batch(problems: list[dict], batch_size: int = 15) -> dict[str, list[str]]:
     """批量自动打标签
 
     Args:
-        problems: [{"problem_id": "P1001", "title": "A+B Problem"}, ...]
-        batch_size: 每批处理的题目数
+        problems: [{"problem_id": "P1001", "title": "A+B Problem", "content": "...", "platform": "atcoder"}, ...]
+        batch_size: 每批处理的题目数 (带 content 时减小批次避免超 token)
 
     Returns:
         {"P1001": ["implementation", "math"], ...}
@@ -105,15 +124,24 @@ def auto_tag_batch(problems: list[dict], batch_size: int = 20) -> dict[str, list
     result = {}
     for i in range(0, len(problems), batch_size):
         batch = problems[i:i + batch_size]
-        titles = [p["title"] for p in batch]
-        try:
-            tags_list = auto_tag(titles)
-            for p, tags in zip(batch, tags_list):
-                # Filter to only known tags
-                valid = [t.lower() for t in tags if t.lower() in KNOWN_TAGS]
-                result[p["problem_id"]] = valid
-        except Exception as e:
-            print(f"  [TAGGER] batch {i // batch_size} failed: {e}")
-            for p in batch:
-                result[p["problem_id"]] = []
+        # Use smaller batches when content is included (more tokens per problem)
+        has_content = any(p.get("content") for p in batch)
+        effective_batch = max(5, batch_size // 3) if has_content else batch_size
+
+        # Re-chunk if needed
+        sub_batches = []
+        for j in range(0, len(batch), effective_batch):
+            sub_batches.append(batch[j:j + effective_batch])
+
+        for sub in sub_batches:
+            try:
+                tags_list = auto_tag(sub)
+                for p, tags in zip(sub, tags_list):
+                    # Filter to only known tags
+                    valid = [t.lower() for t in tags if t.lower() in KNOWN_TAGS]
+                    result[p["problem_id"]] = valid
+            except Exception as e:
+                print(f"  [TAGGER] batch failed: {e}")
+                for p in sub:
+                    result[p["problem_id"]] = []
     return result
