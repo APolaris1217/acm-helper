@@ -137,7 +137,7 @@ def _load_problem_cache():
 def _save_problem_cache(cache):
     try:
         with open(_PROBLEM_CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False)
+            json.dump(cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"  [CACHE] save failed: {e}")
 
@@ -367,61 +367,54 @@ def _scrape_codeforces_content(problem_id):
 
 
 def _scrape_nowcoder_content(problem_id):
-    """Scrape NowCoder problem description.
-
-    Problem page: https://ac.nowcoder.com/acm/problem/{problem_id}
-    Uses the _contentOnly=1 API if available.
-    """
+    """Scrape NowCoder problem description from HTML page."""
     import re
-    # Try JSON API first
-    url = f"https://ac.nowcoder.com/acm/problem/{problem_id}?_contentOnly=1"
+    url = f"https://ac.nowcoder.com/acm/problem/{problem_id}"
     headers = {
-        "Accept": "application/json",
+        "Accept": "text/html,application/xhtml+xml",
         "Referer": "https://ac.nowcoder.com/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     }
     try:
         r = _cf_get(url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            try:
-                data = r.json()
-                # Navigate to problem description
-                problem = None
-                for path in [
-                    ["currentData", "problem"],
-                    ["data", "problem"],
-                ]:
-                    d = data
-                    for key in path:
-                        d = d.get(key, {}) if isinstance(d, dict) else {}
-                    if isinstance(d, dict) and d:
-                        problem = d
-                        break
+        if r.status_code != 200:
+            print(f"  [NC-SCRAPE] {problem_id}: HTTP {r.status_code}")
+            return ""
 
-                if problem:
-                    desc = problem.get("description", "")
-                    if not desc:
-                        # Try concatenating description parts
-                        parts = []
-                        for key in ["title", "description", "input", "output", "hint"]:
-                            if problem.get(key):
-                                parts.append(str(problem[key]))
-                        desc = "\n".join(parts)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(r.text, "html.parser")
 
-                    if desc and len(desc) > 10:
-                        # Strip HTML tags
-                        import re as _re
-                        desc = _re.sub(r'<[^>]+>', ' ', desc)
-                        desc = _re.sub(r'\s+', ' ', desc).strip()
-                        if len(desc) > 2000:
-                            desc = desc[:2000]
-                        print(f"  [NC-SCRAPE] {problem_id}: got {len(desc)} chars (API)")
-                        return desc
-            except Exception:
-                pass  # Fall back to HTML
-    except Exception:
-        pass
+        parts = []
+        # NowCoder problem page has subject-item sections
+        for cls in ["subject-item-title", "subject-item-content", "subject-item-description"]:
+            for elem in soup.find_all(class_=re.compile(cls)):
+                text = elem.get_text(" ", strip=True)
+                if text and len(text) > 5:
+                    parts.append(text)
 
-    return ""
+        if not parts:
+            # Fallback: grab main content area
+            main = soup.find("div", class_=re.compile("subject|content|problem|main"))
+            if main:
+                for tag in main.find_all(["script", "style", "pre", "code"]):
+                    tag.decompose()
+                text = main.get_text(" ", strip=True)
+                if text:
+                    parts.append(text)
+
+        content = " ".join(parts)
+        # Strip HTML and normalize whitespace
+        content = re.sub(r'<[^>]+>', ' ', content)
+        content = re.sub(r'\s+', ' ', content).strip()
+        if len(content) > 2000:
+            content = content[:2000]
+        if content:
+            print(f"  [NC-SCRAPE] {problem_id}: got {len(content)} chars")
+        return content
+
+    except Exception as e:
+        print(f"  [NC-SCRAPE] {problem_id}: error - {e}")
+        return ""
 
 
 def _auto_tag_untagged():
