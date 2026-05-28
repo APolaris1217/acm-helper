@@ -161,9 +161,10 @@ def _scrape_luogu_tags(pid):
 
     url = f"https://www.luogu.com.cn/problem/{pid}?_contentOnly=1"
     headers = {
+        "x-lentille-request": "content-only",
+        "x-luogu-type": "content-only",
         "Accept": "application/json",
         "Referer": "https://www.luogu.com.cn/",
-        "x-luogu-type": "content-only",
     }
     try:
         r = _cf_get(url, headers=headers, timeout=15)
