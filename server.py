@@ -445,60 +445,46 @@ def _auto_tag_untagged():
                 seen.add(key)
                 all_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
 
-        # Step 1: Concurrent scrape Luogu problem pages for tags
+        # Step 1: Serial scrape Luogu problem pages for tags (no threads — curl_cffi incompatible)
         lg_problems = [p for p in all_problems if p["platform"] == "luogu"]
         ai_problems = [p for p in all_problems if p["platform"] != "luogu"]
         updated = 0
 
         if lg_problems:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems (concurrent)...")
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                futures = {pool.submit(_scrape_luogu_tags, p["problem_id"]): p for p in lg_problems}
-                for future in as_completed(futures):
-                    p = futures[future]
-                    try:
-                        cn_tags = future.result()
-                    except Exception:
-                        cn_tags = []
-                    if cn_tags:
-                        en_tags = _cn_to_en_tags(cn_tags)
-                        tags_json = _j.dumps(en_tags, ensure_ascii=False)
-                        db2.execute(
-                            "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
-                            (tags_json, p["problem_id"])
-                        )
-                        updated += 1
-                    else:
-                        ai_problems.append(p)
+            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems (serial)...")
+            for i, p in enumerate(lg_problems):
+                if i % 50 == 0:
+                    print(f"  [TAGGER]   progress {i}/{len(lg_problems)}")
+                    db2.commit()  # Commit periodically
+                cn_tags = _scrape_luogu_tags(p["problem_id"])
+                if cn_tags:
+                    en_tags = _cn_to_en_tags(cn_tags)
+                    tags_json = _j.dumps(en_tags, ensure_ascii=False)
+                    db2.execute(
+                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
+                        (tags_json, p["problem_id"])
+                    )
+                    updated += 1
+                else:
+                    ai_problems.append(p)
             db2.commit()
             print(f"  [TAGGER] Luogu scrape: {updated} tagged")
 
-        # Step 2: Concurrent scrape problem content, then AI fallback
+        # Step 2: Serial scrape problem content, then AI fallback
         if ai_problems:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems...")
-            # Scrape problem descriptions concurrently
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                futures = {}
-                for p in ai_problems:
-                    f = pool.submit(_scrape_problem_content, p["platform"], p["problem_id"])
-                    futures[f] = p
-                for future in as_completed(futures):
-                    p = futures[future]
-                    try:
-                        content = future.result()
-                    except Exception:
-                        content = ""
-                    if content:
-                        p["content"] = content
-                    # Also attach difficulty if available
-                    row = db2.execute(
-                        "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
-                        (p["platform"], p["problem_id"])
-                    ).fetchone()
-                    if row and row["d"]:
-                        p["difficulty"] = row["d"]
+            print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems (serial)...")
+            for i, p in enumerate(ai_problems):
+                if i % 20 == 0:
+                    print(f"  [TAGGER]   progress {i}/{len(ai_problems)}")
+                content = _scrape_problem_content(p["platform"], p["problem_id"])
+                if content:
+                    p["content"] = content
+                row = db2.execute(
+                    "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
+                    (p["platform"], p["problem_id"])
+                ).fetchone()
+                if row and row["d"]:
+                    p["difficulty"] = row["d"]
 
             from ai.deepseek_tagger import auto_tag_batch
             tag_map = auto_tag_batch(ai_problems)
@@ -1596,67 +1582,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         except Exception as e:
                             print(f"  [SYNC-ALL] {plat}/{uname} 失败: {e}")
                             tm.update(task_id, error=f"{plat}/{uname}: {e}")
-                    # Auto-tag untagged problems
-                    tm.update(task_id, status="running", progress=0.95,
-                              message="AI 自动识别题目标签...")
-                    _auto_tag_untagged()
                     tm.update(task_id, status="done", progress=1.0,
                               message=f"全部 {total} 个账户同步完成")
 
                 threading.Thread(target=_sync_all, daemon=True).start()
                 self._send_json({"ok": True, "task_id": task_id, "accounts": list(accounts.keys())})
 
-            # ---- AI Auto-tag ----
+            # ---- AI Auto-tag (all platforms) ----
             elif path == "/api/auto-tag" and self.command == "POST":
-                body = self._read_body()
-                platform = body.get("platform", "").strip()
-                if not platform:
-                    self._send_error("Missing platform", 400)
-                    return
-                from ai.deepseek_tagger import auto_tag_batch
-                db = get_db()
-                # Find untagged problems
-                rows = db.execute(
-                    "SELECT DISTINCT problem_id, title FROM submissions "
-                    "WHERE platform=? AND (tags='[]' OR tags='')",
-                    (platform,)
-                ).fetchall()
-                problems = [{"problem_id": r["problem_id"], "title": r["title"]} for r in rows]
-                # Deduplicate by problem_id
-                seen = {}
-                unique = []
-                for p in problems:
-                    if p["problem_id"] not in seen:
-                        seen[p["problem_id"]] = True
-                        unique.append(p)
-                if not unique:
-                    self._send_json({"ok": True, "message": "没有需要打标签的题目", "count": 0})
-                    return
-
-                print(f"  [TAGGER] Auto-tagging {len(unique)} problems for {platform}...")
-                def _do_tag():
-                    import json as _j
-                    try:
-                        tag_map = auto_tag_batch(unique)
-                        db2 = get_db()
-                        updated = 0
-                        for pid, tags in tag_map.items():
-                            if tags:
-                                tags_json = _j.dumps(tags, ensure_ascii=False)
-                                db2.execute(
-                                    "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
-                                    (tags_json, platform, pid)
-                                )
-                                updated += db2.total_changes
-                        db2.commit()
-                        print(f"  [TAGGER] Updated {updated} rows for {platform}")
-                    except Exception as e:
-                        import traceback
-                        print(f"  [TAGGER] Failed: {e}")
-                        traceback.print_exc()
-
-                threading.Thread(target=_do_tag, daemon=True).start()
-                self._send_json({"ok": True, "message": f"开始为 {len(unique)} 道{platform}题目打标签...", "count": len(unique)})
+                print("  [TAGGER] Auto-tag triggered from frontend")
+                _auto_tag_untagged()
+                self._send_json({"ok": True})
 
             # ---- Clear data ----
             elif path == "/api/clear-data" and self.command == "POST":
