@@ -296,14 +296,6 @@ tr:hover td { background: #f8fafc; }
       <div id="sync-progress-fill" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;"></div>
     </div>
     <div id="sync-status" class="sync-status"></div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-      <div class="sync-inputs">
-        <div class="form-group" style="min-width:280px;">
-          <label>DeepSeek API Key（同步后自动补标签需要，输入即保存）</label>
-          <input id="cfg-deepseek-key" type="password" placeholder="sk-..." style="width:100%;" oninput="saveApiKeyAuto()">
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="card" id="form-card">
@@ -407,6 +399,15 @@ tr:hover td { background: #f8fafc; }
     </div>
     <button class="btn btn-primary" id="btn-bind" style="margin-top:8px;">绑定账户</button>
     <span id="bind-status" style="font-size:12px;color:var(--text-muted);margin-left:8px;"></span>
+  </div>
+  <div class="card" style="margin-top:12px;">
+    <div class="card-header">AI 设置</div>
+    <p class="card-desc">DeepSeek API Key，同步后自动为无标签题目补标签。输入即保存，清空即删除。</p>
+    <div class="sync-inputs">
+      <div class="form-group" style="min-width:300px;">
+        <input id="cfg-deepseek-key" type="password" placeholder="sk-..." style="width:100%;" oninput="saveApiKeyAuto()">
+      </div>
+    </div>
   </div>
 </div>
 
@@ -543,7 +544,8 @@ async function syncAllBound(){const st=document.getElementById('sync-status'),ba
 async function clearAllData(){if(!confirm('确定要清除所有数据吗？此操作不可撤销。'))return;const st=document.getElementById('sync-status');try{const resp=await fetch(SERVER+'/api/clear-data',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const data=await resp.json();st.textContent=data.message||'已清除';st.style.color='var(--green)';problems=[];saveToStorage();renderAll();}catch(e){st.textContent='清除失败: '+e.message;st.style.color='var(--red)';}}
 let _saveApiTimer=null;
 function saveApiKeyAuto(){clearTimeout(_saveApiTimer);_saveApiTimer=setTimeout(async()=>{const key=document.getElementById('cfg-deepseek-key').value.trim();if(key){try{await fetch(SERVER+'/api/email-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deepseek_api_key:key})});}catch(e){console.error('auto-save key failed:',e);}}},800);}
-document.addEventListener('DOMContentLoaded',function(){loadBoundSummary();const btnSync=document.getElementById('btn-sync-all'),btnClear=document.getElementById('btn-clear-data');if(btnSync)btnSync.addEventListener('click',syncAllBound);if(btnClear)btnClear.addEventListener('click',clearAllData);});
+async function loadApiKey(){try{const resp=await fetch(SERVER+'/api/email-config');const cfg=await resp.json();const el=document.getElementById('cfg-deepseek-key');if(el)el.value=cfg.deepseek_api_key||'';}catch(e){}}
+document.addEventListener('DOMContentLoaded',function(){loadBoundSummary();loadApiKey();const btnSync=document.getElementById('btn-sync-all'),btnClear=document.getElementById('btn-clear-data');if(btnSync)btnSync.addEventListener('click',syncAllBound);if(btnClear)btnClear.addEventListener('click',clearAllData);});
 
 async function renderReportConfig(){try{const resp=await fetch(SERVER+'/api/email-config');const cfg=await resp.json();document.getElementById('cfg-smtp-host').value=cfg.smtp_host||'smtp.qq.com';document.getElementById('cfg-smtp-port').value=cfg.smtp_port||587;document.getElementById('cfg-sender-email').value=cfg.sender_email||'';document.getElementById('cfg-sender-password').value='';document.getElementById('cfg-receiver-email').value=cfg.receiver_email||'';document.getElementById('cfg-schedule-day').value=cfg.schedule_day??1;document.getElementById('cfg-schedule-hour').value=cfg.schedule_hour??9;document.getElementById('cfg-enabled').checked=cfg.enabled||false;document.getElementById('cfg-deepseek-key').value=cfg.deepseek_api_key||'';}catch(e){console.error('加载邮件配置失败:',e);}}
 async function saveEmailConfig(){const st=document.getElementById('email-status');st.textContent='保存中...';st.style.color='var(--text-muted)';const cfg={smtp_host:document.getElementById('cfg-smtp-host').value.trim(),smtp_port:parseInt(document.getElementById('cfg-smtp-port').value)||587,sender_email:document.getElementById('cfg-sender-email').value.trim(),sender_password:document.getElementById('cfg-sender-password').value,receiver_email:document.getElementById('cfg-receiver-email').value.trim(),schedule_day:parseInt(document.getElementById('cfg-schedule-day').value),schedule_hour:parseInt(document.getElementById('cfg-schedule-hour').value),enabled:document.getElementById('cfg-enabled').checked,deepseek_api_key:document.getElementById('cfg-deepseek-key').value.trim()};try{const resp=await fetch(SERVER+'/api/email-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});const data=await resp.json();st.textContent=data.ok?'已保存':('失败: '+data.message);st.style.color=data.ok?'var(--green)':'var(--red)';}catch(e){st.textContent='失败: '+e.message;st.style.color='var(--red)';}}
