@@ -9,4 +9,5 @@ cache.json
 nc_diff_cache.json
 bound_accounts.json
 email_config.json
+problem_cache.json
 .claude/

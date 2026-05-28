@@ -123,16 +123,41 @@ _LG_TAG_MAP = {
     500:"暴力",501:"枚举",502:"打表",
     600:"模拟",601:"字符串",602:"数学",
 }
-_LG_TAG_CACHE = {}  # pid -> [tag_names]
+_PROBLEM_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "problem_cache.json")
+
+def _load_problem_cache():
+    if os.path.exists(_PROBLEM_CACHE_FILE):
+        try:
+            with open(_PROBLEM_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_problem_cache(cache):
+    try:
+        with open(_PROBLEM_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"  [CACHE] save failed: {e}")
+
+def _cached(key):
+    """Read from persistent cache."""
+    cache = _load_problem_cache()
+    return cache.get(key)
+
+def _cache_set(key, value):
+    """Write to persistent cache."""
+    cache = _load_problem_cache()
+    cache[key] = value
+    _save_problem_cache(cache)
 
 def _scrape_luogu_tags(pid):
-    """Scrape tag names from a Luogu problem detail page.
-
-    Uses the _contentOnly=1 API to get JSON data, extracts tag IDs,
-    and maps them to Chinese tag names.
-    """
-    if pid in _LG_TAG_CACHE:
-        return _LG_TAG_CACHE[pid]
+    """Scrape tag names from a Luogu problem detail page (with persistent cache)."""
+    cache_key = f"lg_tag:{pid}"
+    cached = _cached(cache_key)
+    if cached is not None:
+        return cached
 
     url = f"https://www.luogu.com.cn/problem/{pid}?_contentOnly=1"
     headers = {
@@ -144,7 +169,7 @@ def _scrape_luogu_tags(pid):
         r = _cf_get(url, headers=headers, timeout=15)
         if r.status_code != 200:
             print(f"  [LG-TAG] {pid}: HTTP {r.status_code}")
-            _LG_TAG_CACHE[pid] = []
+            _cache_set(cache_key, [])
             return []
 
         data = r.json()
@@ -162,7 +187,7 @@ def _scrape_luogu_tags(pid):
 
         if not problem:
             print(f"  [LG-TAG] {pid}: cannot find problem data")
-            _LG_TAG_CACHE[pid] = []
+            _cache_set(cache_key, [])
             return []
 
         tag_ids = problem.get("tags", [])
@@ -174,7 +199,6 @@ def _scrape_luogu_tags(pid):
             if isinstance(tid, int) and tid in _LG_TAG_MAP:
                 names.append(_LG_TAG_MAP[tid])
             elif isinstance(tid, str):
-                # Some API versions return tag objects
                 try:
                     tid_int = int(tid)
                     if tid_int in _LG_TAG_MAP:
@@ -182,14 +206,14 @@ def _scrape_luogu_tags(pid):
                 except ValueError:
                     pass
 
-        _LG_TAG_CACHE[pid] = names
+        _cache_set(cache_key, names)
         if names:
-            print(f"  [LG-TAG] {pid}: {names}")
+            print(f"  [LG-TAG] {pid}: {names} (cached)")
         return names
 
     except Exception as e:
         print(f"  [LG-TAG] {pid}: error - {e}")
-        _LG_TAG_CACHE[pid] = []
+        _cache_set(cache_key, [])
         return []
 
 
@@ -211,15 +235,25 @@ def _cn_to_en_tags(cn_tags):
 
 
 def _scrape_problem_content(platform, problem_id):
-    """Scrape problem description from platform website for AI tagging.
+    """Scrape problem description from platform website (with persistent cache).
 
     Returns a short problem description text, or empty string if unavailable.
     """
+    cache_key = f"content:{platform}:{problem_id}"
+    cached = _cached(cache_key)
+    if cached is not None:
+        return cached
+
+    content = ""
     if platform == "atcoder":
-        return _scrape_atcoder_content(problem_id)
+        content = _scrape_atcoder_content(problem_id)
     elif platform == "nowcoder":
-        return _scrape_nowcoder_content(problem_id)
-    return ""
+        content = _scrape_nowcoder_content(problem_id)
+    elif platform == "codeforces":
+        content = _scrape_codeforces_content(problem_id)
+
+    _cache_set(cache_key, content)
+    return content
 
 
 def _scrape_atcoder_content(problem_id):
@@ -275,6 +309,59 @@ def _scrape_atcoder_content(problem_id):
 
     except Exception as e:
         print(f"  [AT-SCRAPE] {problem_id}: error - {e}")
+        return ""
+
+
+def _scrape_codeforces_content(problem_id):
+    """Scrape Codeforces problem statement.
+
+    CF problem IDs look like '1234A' (contestId + index).
+    Problem page: https://codeforces.com/problemset/problem/{contest}/{index}
+    """
+    import re
+    match = re.match(r'(\d+)([A-Za-z]\d*)', problem_id)
+    if not match:
+        print(f"  [CF-SCRAPE] Cannot parse problem_id: {problem_id}")
+        return ""
+
+    contest = match.group(1)
+    index = match.group(2)
+    url = f"https://codeforces.com/problemset/problem/{contest}/{index}"
+
+    try:
+        r = _cf_get(url, headers={"Accept-Language": "en,ru;q=0.9"}, timeout=15)
+        if r.status_code != 200:
+            print(f"  [CF-SCRAPE] {problem_id}: HTTP {r.status_code}")
+            return ""
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        prob_div = soup.find("div", class_="problem-statement")
+        if not prob_div:
+            return ""
+
+        # Remove pre/code blocks, math elements
+        for tag in prob_div.find_all(["pre", "code", "script", "math", "img", "svg", "style"]):
+            tag.decompose()
+
+        parts = []
+        for elem in prob_div.find_all(["div", "p"]):
+            if "header" in (elem.get("class", []) or []):
+                continue
+            text = elem.get_text(" ", strip=True)
+            if text and len(text) > 10:
+                parts.append(text)
+
+        content = " ".join(parts[:15])
+        if len(content) > 2000:
+            content = content[:2000]
+        if content:
+            print(f"  [CF-SCRAPE] {problem_id}: got {len(content)} chars")
+        return content
+
+    except Exception as e:
+        print(f"  [CF-SCRAPE] {problem_id}: error - {e}")
         return ""
 
 
@@ -357,43 +444,60 @@ def _auto_tag_untagged():
                 seen.add(key)
                 all_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
 
-        # Step 1: Scrape Luogu problem pages for tags (no AI needed)
+        # Step 1: Concurrent scrape Luogu problem pages for tags
         lg_problems = [p for p in all_problems if p["platform"] == "luogu"]
         ai_problems = [p for p in all_problems if p["platform"] != "luogu"]
         updated = 0
 
         if lg_problems:
-            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems...")
-            for p in lg_problems:
-                cn_tags = _scrape_luogu_tags(p["problem_id"])
-                if cn_tags:
-                    en_tags = _cn_to_en_tags(cn_tags)
-                    tags_json = _j.dumps(en_tags, ensure_ascii=False)
-                    db2.execute(
-                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
-                        (tags_json, p["problem_id"])
-                    )
-                    updated += 1
-                else:
-                    ai_problems.append(p)
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems (concurrent)...")
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = {pool.submit(_scrape_luogu_tags, p["problem_id"]): p for p in lg_problems}
+                for future in as_completed(futures):
+                    p = futures[future]
+                    try:
+                        cn_tags = future.result()
+                    except Exception:
+                        cn_tags = []
+                    if cn_tags:
+                        en_tags = _cn_to_en_tags(cn_tags)
+                        tags_json = _j.dumps(en_tags, ensure_ascii=False)
+                        db2.execute(
+                            "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
+                            (tags_json, p["problem_id"])
+                        )
+                        updated += 1
+                    else:
+                        ai_problems.append(p)
             db2.commit()
             print(f"  [TAGGER] Luogu scrape: {updated} tagged")
 
-        # Step 2: Scrape problem content, then AI fallback
+        # Step 2: Concurrent scrape problem content, then AI fallback
         if ai_problems:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems...")
-            # Scrape problem descriptions for better tagging
-            for p in ai_problems:
-                content = _scrape_problem_content(p["platform"], p["problem_id"])
-                if content:
-                    p["content"] = content
-                # Also attach difficulty if available
-                row = db2.execute(
-                    "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
-                    (p["platform"], p["problem_id"])
-                ).fetchone()
-                if row and row["d"]:
-                    p["difficulty"] = row["d"]
+            # Scrape problem descriptions concurrently
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = {}
+                for p in ai_problems:
+                    f = pool.submit(_scrape_problem_content, p["platform"], p["problem_id"])
+                    futures[f] = p
+                for future in as_completed(futures):
+                    p = futures[future]
+                    try:
+                        content = future.result()
+                    except Exception:
+                        content = ""
+                    if content:
+                        p["content"] = content
+                    # Also attach difficulty if available
+                    row = db2.execute(
+                        "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
+                        (p["platform"], p["problem_id"])
+                    ).fetchone()
+                    if row and row["d"]:
+                        p["difficulty"] = row["d"]
 
             from ai.deepseek_tagger import auto_tag_batch
             tag_map = auto_tag_batch(ai_problems)
