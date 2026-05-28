@@ -1461,7 +1461,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = self._read_body()
                 cfg = load_email_config()
                 for key in ("smtp_host", "smtp_port", "sender_email", "sender_password",
-                           "receiver_email", "schedule_day", "schedule_hour", "enabled"):
+                           "receiver_email", "schedule_day", "schedule_hour", "enabled",
+                           "deepseek_api_key"):
                     if key in body:
                         cfg[key] = body[key]
                 save_email_config(cfg)
