@@ -1597,11 +1597,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         from datetime import timedelta
                         for plat, acc in plats:
                             uname = acc.get("username", "")
-                            cookie = acc.get("cookie", "")
                             if not uname:
                                 continue
                             try:
-                                sched._refresh_data(plat, uname, cookie)
                                 subs = sched._load_submissions(plat, uname)
                                 now = datetime.now()
                                 report = generate_report(
@@ -1615,7 +1613,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     send_report(report, f"ACM 训练周报 - {uname}({plat}) - {now.strftime('%Y-%m-%d')}")
                                 print(f"  [SCHEDULER] 手动周报已生成: {plat}/{uname}")
                             except Exception as e:
+                                import traceback
                                 print(f"  [SCHEDULER] 手动周报失败 {plat}/{uname}: {e}")
+                                traceback.print_exc()
                     threading.Thread(target=_manual_all, daemon=True).start()
                     self._send_json({"ok": True, "message": f"周报生成已触发: {len(plats)} 个账户", "accounts": [p for p,_ in plats]})
                     return
