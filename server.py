@@ -1545,7 +1545,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                            "receiver_email", "schedule_day", "schedule_hour", "enabled",
                            "deepseek_api_key"):
                     if key in body:
-                        cfg[key] = body[key]
+                        val = body[key]
+                        # Keep old password if new value is masked placeholder or empty
+                        if key == "sender_password" and (not val or val.strip() == "***"):
+                            continue
+                        cfg[key] = val
                 save_email_config(cfg)
                 if cfg.get("enabled"):
                     get_scheduler().reload_accounts()
@@ -1580,6 +1584,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = self._read_body()
                 platform = body.get("platform", "").strip()
                 username = body.get("username", "").strip()
+
+                # If platform='all', iterate all bound accounts
+                if platform == "all":
+                    accounts = _load_bound_accounts()
+                    if not accounts:
+                        self._send_error("没有绑定的账户", 400)
+                        return
+                    plats = list(accounts.items())
+                    def _manual_all():
+                        sched = get_scheduler()
+                        from datetime import timedelta
+                        for plat, acc in plats:
+                            uname = acc.get("username", "")
+                            cookie = acc.get("cookie", "")
+                            if not uname:
+                                continue
+                            try:
+                                sched._refresh_data(plat, uname, cookie)
+                                subs = sched._load_submissions(plat, uname)
+                                now = datetime.now()
+                                report = generate_report(
+                                    target=f"{plat}: {uname}",
+                                    from_date=(now - timedelta(days=7)).strftime("%Y-%m-%d"),
+                                    to_date=now.strftime("%Y-%m-%d"),
+                                    submissions=subs,
+                                )
+                                cfg = load_email_config()
+                                if cfg.get("enabled") and cfg.get("receiver_email"):
+                                    send_report(report, f"ACM 训练周报 - {uname}({plat}) - {now.strftime('%Y-%m-%d')}")
+                                print(f"  [SCHEDULER] 手动周报已生成: {plat}/{uname}")
+                            except Exception as e:
+                                print(f"  [SCHEDULER] 手动周报失败 {plat}/{uname}: {e}")
+                    threading.Thread(target=_manual_all, daemon=True).start()
+                    self._send_json({"ok": True, "message": f"周报生成已触发: {len(plats)} 个账户", "accounts": [p for p,_ in plats]})
+                    return
+
                 if not platform or not username:
                     self._send_error("Missing platform or username", 400)
                     return
