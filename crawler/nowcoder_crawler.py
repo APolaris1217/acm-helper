@@ -203,6 +203,8 @@ class NowCoderCrawler(BaseCrawler):
         enriched = 0
         for s in submissions:
             d = diff_map.get(s.problem_id, 0)
+            if d > 0 and d < 800:
+                d = 800
             if d and not s.difficulty:
                 s.difficulty = d
                 enriched += 1

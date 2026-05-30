@@ -902,7 +902,7 @@ def fetch_atcoder(username):
         diff = models.get(pid, {}).get("difficulty")
         diff_map[pid] = {
             "title": info.get("title", pid),
-            "difficulty": round(diff + 1000) if diff is not None else 0,
+            "difficulty": max(800, round(diff + 1000)) if diff is not None else 0,
         }
     print(f"  [AT] Built diff_map with {len(diff_map)} entries")
 
