@@ -14,7 +14,7 @@ import time
 import ssl
 import sys
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Analysis engine (legacy)
 from analyzer import analyze as analyze_submissions
@@ -1579,6 +1579,58 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "schedule_hour": cfg.get("schedule_hour", 9),
                     "bound_accounts": len(get_scheduler()._bound_accounts),
                 })
+
+            # ---- Report preview ----
+            elif path == "/api/v2/report/preview" and self.command == "GET":
+                platform = params.get("platform", "").strip()
+                username = params.get("username", "").strip()
+                sched = get_scheduler()
+
+                if platform == "all":
+                    accounts = _load_bound_accounts()
+                    if not accounts:
+                        self._send_error("没有绑定的账户", 400)
+                        return
+                    results = []
+                    for plat, acc in accounts.items():
+                        uname = acc.get("username", "")
+                        if not uname:
+                            continue
+                        subs = sched._load_submissions(plat, uname)
+                        if not subs:
+                            results.append({"platform": plat, "username": uname, "report": "", "error": "无提交数据"})
+                            continue
+                        try:
+                            report = generate_report(
+                                target=f"{plat}: {uname}",
+                                from_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
+                                to_date=datetime.now().strftime("%Y-%m-%d"),
+                                submissions=subs,
+                            )
+                            results.append({"platform": plat, "username": uname, "report": report})
+                        except Exception as e:
+                            results.append({"platform": plat, "username": uname, "report": "", "error": str(e)})
+                    self._send_json({"reports": results})
+                    return
+
+                if not platform or not username:
+                    self._send_error("Missing platform or username", 400)
+                    return
+
+                subs = sched._load_submissions(platform, username)
+                if not subs:
+                    self._send_json({"reports": [{"platform": platform, "username": username, "report": "", "error": "无提交数据"}]})
+                    return
+                try:
+                    report = generate_report(
+                        target=f"{platform}: {username}",
+                        from_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
+                        to_date=datetime.now().strftime("%Y-%m-%d"),
+                        submissions=subs,
+                    )
+                    self._send_json({"reports": [{"platform": platform, "username": username, "report": report}]})
+                except Exception as e:
+                    self._send_json({"reports": [{"platform": platform, "username": username, "report": "", "error": str(e)}]})
 
             elif path == "/api/scheduler/trigger" and self.command == "POST":
                 body = self._read_body()
