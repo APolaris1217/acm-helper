@@ -4,6 +4,7 @@
 无需认证，无需 curl_cffi。
 """
 from .base_crawler import BaseCrawler, Submission
+from tag_map import normalize_tags
 import time
 
 CODEFORCES_API = "https://codeforces.com/api/user.status"
@@ -48,7 +49,7 @@ class CodeforcesCrawler(BaseCrawler):
                 problem_id=f"{problem.get('contestId', '')}{problem.get('index', '')}",
                 title=f"{problem.get('contestId', '')}{problem.get('index', '')} - {problem.get('name', '')}",
                 difficulty=problem.get("rating", 0) or 0,
-                tags=[t.lower() for t in problem.get("tags", []) if t.lower() != "*special"],
+                tags=normalize_tags([t.lower() for t in problem.get("tags", []) if t.lower() != "*special"]),
                 result=result,
                 submit_time=time.strftime(
                     "%Y-%m-%dT%H:%M:%S",

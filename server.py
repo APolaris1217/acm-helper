@@ -83,7 +83,7 @@ _CRAWLERS["luogu"] = _LuoguCrawler()
 _CRAWLERS["nowcoder"] = _NowCoderCrawler()
 
 # --- Tag name mapping ---
-from tag_map import TAG_CN, cn_tag as _cn_tag
+from tag_map import TAG_CN, cn_tag as _cn_tag, normalize_tags
 
 # ---- Luogu tag ID -> Chinese name mapping ----
 # Dynamically fetched from Luogu's /_lfe/tags endpoint and cached locally.
@@ -198,7 +198,7 @@ def _scrape_luogu_tags(pid):
                     if c not in seen:
                         seen.add(c)
                         names.append(c)
-            return names
+            return normalize_tags(names)  # apply synonym merge (e.g. 枚举→暴力枚举)
         # Old format: list of strings (pre-resolved names) → re-fetch.
         # Empty lists used to be cached for transient failures; retry them instead of
         # treating them as permanent "no tags" results.
@@ -259,7 +259,7 @@ def _scrape_luogu_tags(pid):
 
         if names:
             print(f"  [LG-TAG] {pid}: {names} (cached)")
-        return names
+        return normalize_tags(names)
 
     except Exception as e:
         print(f"  [LG-TAG] {pid}: error - {e}")
@@ -524,7 +524,7 @@ def _auto_tag_untagged():
                 if i % 50 == 0:
                     print(f"  [TAGGER]   progress {i}/{len(lg_problems)}")
                     db2.commit()
-                cn_tags = _scrape_luogu_tags(p["problem_id"])
+                cn_tags = normalize_tags(_scrape_luogu_tags(p["problem_id"]))
                 if cn_tags:
                     tags_json = _j.dumps(cn_tags, ensure_ascii=False)
                     db2.execute(
@@ -559,8 +559,8 @@ def _auto_tag_untagged():
                 plat = p["platform"]
                 tags = tag_map.get(pid, [])
                 if tags:
-                    from tag_map import TAG_CN as _tag_cn
-                    cn_tags = [_tag_cn.get(t.lower(), t.lower()) for t in tags]
+                    from tag_map import normalize_tags as _norm
+                    cn_tags = _norm(tags)
                     tags_json = _j.dumps(cn_tags, ensure_ascii=False)
                     db2.execute(
                         "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
@@ -796,7 +796,7 @@ def transform_cf(sub):
         "problemId": f"{prob.get('contestId','')}{prob.get('index','')}",
         "name": prob.get("name", ""),
         "difficulty": prob.get("rating", 0) or 0,
-        "tags": [TAG_CN.get(t.lower(), t.lower()) for t in prob.get("tags", []) if t.lower() != "*special"],
+        "tags": normalize_tags([TAG_CN.get(t.lower(), t.lower()) for t in prob.get("tags", []) if t.lower() != "*special"]),
         "result": result,
         "date": date,
         "language": sub.get("programmingLanguage", ""),
