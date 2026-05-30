@@ -10,4 +10,5 @@ nc_diff_cache.json
 bound_accounts.json
 email_config.json
 problem_cache.json
+luogu_tags_cache.json
 .claude/
