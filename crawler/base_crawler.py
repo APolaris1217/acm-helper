@@ -18,6 +18,7 @@ class Submission:
     language: str = ""
     code: str = ""
     url: str = ""
+    record_id: str = ""
 
     def __hash__(self):
         return hash((self.platform, self.problem_id))

@@ -146,7 +146,7 @@ class WeeklyReportScheduler:
                 platform=r["platform"], problem_id=r["problemId"], title=r["name"],
                 difficulty=r["difficulty"], tags=r["tags"], result=r["result"],
                 submit_time=r["date"], language=r["language"],
-                url=r.get("url", ""),
+                url=r.get("url", ""), record_id=str(r.get("recordId", "")),
             ) for r in raw]
         elif platform == "nowcoder":
             from crawler.nowcoder_crawler import NowCoderCrawler
@@ -188,20 +188,30 @@ class WeeklyReportScheduler:
             result = s.result if not isinstance(s, dict) else s.get('result','')
             stime = s.submit_time if not isinstance(s, dict) else (s.get('submit_time') or s.get('date',''))
             lang = s.language if not isinstance(s, dict) else s.get('language','')
-            url = s.url if not isinstance(s, dict) else ''
+            url = s.url if not isinstance(s, dict) else s.get('url','')
+            record_id = str(getattr(s, 'record_id', s.get('recordId', '')) if isinstance(s, dict) else getattr(s, 'record_id', '') or '')
+            if record_id:
+                db.execute(
+                    "UPDATE OR IGNORE submissions SET record_id=? "
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "AND (record_id='' OR record_id IS NULL)",
+                    (record_id, user_id, plat, pid, stime, result, lang)
+                )
             db.execute(
                 "INSERT OR IGNORE INTO submissions "
-                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, plat, pid, title, diff, tags_json, result, stime, lang, url)
+                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url, record_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, plat, pid, title, diff, tags_json, result, stime, lang, url, record_id)
             )
             # Update tags/difficulty if server has new data
             if (diff and diff > 0) or (tags_json and tags_json != '[]'):
                 db.execute(
                     "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
                     "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=?",
-                    (diff, diff, tags_json, tags_json, user_id, plat, pid, stime, result)
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "AND COALESCE(record_id, '')=?",
+                    (diff, diff, tags_json, tags_json,
+                     user_id, plat, pid, stime, result, lang, record_id)
                 )
         db.commit()
         db.execute("PRAGMA foreign_keys=ON")

@@ -63,7 +63,8 @@ class _LuoguCrawler:
         return [Submission(
             platform=s["platform"], problem_id=s["problemId"], title=s["name"],
             difficulty=s["difficulty"], tags=s["tags"], result=s["result"],
-            submit_time=s["date"], language=s["language"],
+            submit_time=s["date"], language=s["language"], url=s.get("url", ""),
+            record_id=str(s.get("recordId", "")),
         ) for s in fetch_luogu(uid_or_username, self.cookie)]
 
 
@@ -85,44 +86,69 @@ _CRAWLERS["nowcoder"] = _NowCoderCrawler()
 from tag_map import TAG_CN, cn_tag as _cn_tag
 
 # ---- Luogu tag ID -> Chinese name mapping ----
-# From Luogu problem detail pages, tag IDs are numeric.
-_LG_TAG_MAP = {
-    1:"模拟",2:"字符串",3:"排序",4:"搜索",5:"动态规划",
-    6:"数学",7:"贪心",8:"计算几何",9:"图论",10:"数据结构",
-    11:"递推",12:"分治",13:"博弈论",14:"递归",15:"构造",
-    16:"暴力",17:"位运算",18:"随机化",19:"概率",20:"高精度",
-    21:"最短路",22:"生成树",23:"网络流",24:"二分",25:"离散化",
-    26:"并查集",27:"线段树",28:"平衡树",29:"堆",30:"栈",
-    31:"队列",32:"链表",33:"哈希",34:"矩阵",35:"前缀和",
-    36:"差分",37:"双指针",38:"倍增",39:"二分图",40:"强连通分量",
-    41:"拓扑排序",42:"LCA",43:"DFS",44:"BFS",45:"树",
-    46:"树状数组",47:"状压DP",48:"数位DP",49:"树形DP",
-    50:"区间DP",51:"背包",52:"记忆化搜索",53:"剪枝",
-    54:"IDA*",55:"A*",56:"DLX",57:"莫队",58:"线性基",
-    59:"基环树",60:"虚树",61:"点分治",62:"CDQ分治",
-    63:"整体二分",64:"wqs二分",65:"分数规划",
-    66:"单调队列",67:"单调栈",68:"悬线法",69:"扫描线",
-    70:"最值",71:"表达式求值",72:"括号序列",73:"KMP",
-    74:"AC自动机",75:"后缀数组",76:"后缀自动机",77:"回文自动机",
-    78:"Manacher",79:"Trie",80:"哈夫曼树",81:"左偏树",
-    82:"Treap",83:"Splay",84:"LCT",85:"树套树",86:"可持久化线段树",
-    87:"分块",88:"欧拉回路",89:"欧拉路径",90:"差分约束",
-    91:"2-SAT",92:"费用流",93:"上下界网络流",94:"最大流",
-    95:"拓扑",96:"树形数据结构",
-    # Extra range
-    100:"构造",101:"数学",102:"图论",103:"数据结构",104:"字符串",
-    105:"动态规划",106:"贪心",107:"搜索",108:"计算几何",
-    109:"博弈论",110:"分治",111:"组合数学",
-    120:"树",121:"数论",122:"概率",123:"线性代数",
-    200:"数学",201:"图论",202:"数据结构",
-    300:"模拟",301:"数学",302:"图论",303:"数据结构",304:"字符串",
-    305:"动态规划",306:"贪心",307:"搜索",308:"计算几何",
-    309:"博弈论",310:"分治",311:"构造",312:"位运算",
-    350:"二分",351:"前缀和",352:"差分",353:"双指针",
-    400:"排序",401:"递归",
-    500:"暴力",501:"枚举",502:"打表",
-    600:"模拟",601:"字符串",602:"数学",
-}
+# Dynamically fetched from Luogu's /_lfe/tags endpoint and cached locally.
+# Only type-2 (algorithm) tags are included; source/year/region/property tags are filtered out.
+_LG_TAG_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "luogu_tags_cache.json")
+
+def _load_lg_tag_map():
+    """Load Luogu tag ID→name mapping from local cache file."""
+    if os.path.exists(_LG_TAG_CACHE_FILE):
+        try:
+            with open(_LG_TAG_CACHE_FILE, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            return {int(k): v for k, v in cached.items()}
+        except Exception:
+            pass
+    return {}
+
+def _fetch_lg_tag_map():
+    """Fetch the official Luogu tag list and cache only algorithm tags (type 2)."""
+    import requests as _requests
+    url = "https://www.luogu.com.cn/_lfe/tags"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.luogu.com.cn/",
+    }
+    try:
+        r = _requests.get(url, headers=headers, timeout=15)
+        r.encoding = "utf-8"
+        data = r.json()
+        tags = data.get("tags", [])
+        # Only keep algorithm tags (type 2), filter out source/year/region/property/category
+        algo_tags = {}
+        all_count = 0
+        for t in tags:
+            tid = t.get("id")
+            name = t.get("name", "")
+            ttype = t.get("type")
+            if tid is not None and name:
+                all_count += 1
+                if ttype == 2:
+                    algo_tags[tid] = name
+        # Cache only algorithm tags
+        with open(_LG_TAG_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(algo_tags, f, ensure_ascii=False, indent=2)
+        print(f"  [LG-TAG] Fetched {len(algo_tags)} algorithm tags (filtered from {all_count} total)")
+        return algo_tags
+    except Exception as e:
+        print(f"  [LG-TAG] Failed to fetch tag list: {e}")
+        return _load_lg_tag_map()
+
+def _get_lg_tag_map():
+    """Get Luogu algorithm tag mapping, fetching if cache is empty or older than 7 days."""
+    tag_map = _load_lg_tag_map()
+    if not tag_map:
+        tag_map = _fetch_lg_tag_map()
+    else:
+        try:
+            mtime = os.path.getmtime(_LG_TAG_CACHE_FILE)
+            if time.time() - mtime > 7 * 86400:
+                print("  [LG-TAG] Cache older than 7 days, refreshing...")
+                tag_map = _fetch_lg_tag_map()
+        except Exception:
+            pass
+    return tag_map
+
 _PROBLEM_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "problem_cache.json")
 
 def _load_problem_cache():
@@ -153,11 +179,31 @@ def _cache_set(key, value):
     _save_problem_cache(cache)
 
 def _scrape_luogu_tags(pid):
-    """Scrape tag names from a Luogu problem detail page (with persistent cache)."""
+    """Scrape tag names from a Luogu problem detail page (with persistent cache).
+
+    Caches raw tag IDs so that resolved names stay current when the tag map is refreshed.
+    """
     cache_key = f"lg_tag:{pid}"
     cached = _cached(cache_key)
     if cached is not None:
-        return cached
+        # New format: list of ints (raw tag IDs) → resolve with current map & normalize.
+        if cached and isinstance(cached[0], int):
+            from tag_map import LG_TAG_NORMALIZE
+            tag_map = _get_lg_tag_map()
+            names = []
+            seen = set()
+            for tid in cached:
+                if tid in tag_map:
+                    c = LG_TAG_NORMALIZE.get(tag_map[tid], tag_map[tid])
+                    if c not in seen:
+                        seen.add(c)
+                        names.append(c)
+            return names
+        # Old format: list of strings (pre-resolved names) → re-fetch.
+        # Empty lists used to be cached for transient failures; retry them instead of
+        # treating them as permanent "no tags" results.
+        if cached and isinstance(cached[0], str):
+            pass  # fall through to re-fetch
 
     url = f"https://www.luogu.com.cn/problem/{pid}?_contentOnly=1"
     headers = {
@@ -165,12 +211,12 @@ def _scrape_luogu_tags(pid):
         "x-luogu-type": "content-only",
         "Accept": "application/json",
         "Referer": "https://www.luogu.com.cn/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     }
     try:
         r = _cf_get(url, headers=headers, timeout=15)
         if r.status_code != 200:
             print(f"  [LG-TAG] {pid}: HTTP {r.status_code}")
-            _cache_set(cache_key, [])
             return []
 
         data = r.json()
@@ -188,50 +234,62 @@ def _scrape_luogu_tags(pid):
 
         if not problem:
             print(f"  [LG-TAG] {pid}: cannot find problem data")
-            _cache_set(cache_key, [])
             return []
 
         tag_ids = problem.get("tags", [])
         if not isinstance(tag_ids, list):
             tag_ids = []
 
-        names = []
-        for tid in tag_ids:
-            if isinstance(tid, int) and tid in _LG_TAG_MAP:
-                names.append(_LG_TAG_MAP[tid])
-            elif isinstance(tid, str):
-                try:
-                    tid_int = int(tid)
-                    if tid_int in _LG_TAG_MAP:
-                        names.append(_LG_TAG_MAP[tid_int])
-                except ValueError:
-                    pass
+        # Store raw integer IDs only after a successful parse. Do not cache transient
+        # request/parse failures as [], otherwise one bad request poisons this problem.
+        raw_ids = [tid for tid in tag_ids if isinstance(tid, int)]
+        _cache_set(cache_key, raw_ids)
 
-        _cache_set(cache_key, names)
+        # Resolve to names using current tag map, then normalize to canonical Chinese
+        from tag_map import LG_TAG_NORMALIZE
+        tag_map = _get_lg_tag_map()
+        raw_names = [tag_map[tid] for tid in raw_ids if tid in tag_map]
+        names = []
+        seen = set()
+        for n in raw_names:
+            c = LG_TAG_NORMALIZE.get(n, n)
+            if c not in seen:
+                seen.add(c)
+                names.append(c)
+
         if names:
             print(f"  [LG-TAG] {pid}: {names} (cached)")
         return names
 
     except Exception as e:
         print(f"  [LG-TAG] {pid}: error - {e}")
-        _cache_set(cache_key, [])
         return []
 
 
 def _cn_to_en_tags(cn_tags):
-    """Convert Chinese tag names to English (reverse of TAG_CN)."""
+    """Convert Chinese tag names to English (reverse of TAG_CN).
+
+    Normalizes Luogu-style names like "动态规划 DP" → "动态规划" before lookup,
+    and strips parenthesized suffixes like "珂朵莉树（老司机树 ODT）" → "珂朵莉树".
+    """
+    import re as _re
     from tag_map import TAG_CN
     en_result = []
     for cn in cn_tags:
+        # Normalize: strip parenthesized content (Chinese or English parens)
+        normalized = _re.sub(r'[（(][^)）]*[)）]', '', cn).strip()
+        # Normalize: strip trailing standalone English/abbreviation words
+        # e.g. "动态规划 DP" → "动态规划", "后缀自动机 SAM" → "后缀自动机"
+        normalized = _re.sub(r'\s+[A-Za-z0-9*+]+$', '', normalized).strip()
         found = None
         for en, cn_name in TAG_CN.items():
-            if cn_name == cn or en == cn:
+            if cn_name == normalized or en == normalized:
                 found = en
                 break
         if found:
             en_result.append(found)
         else:
-            en_result.append(cn)  # keep original if no mapping
+            en_result.append(normalized or cn)  # keep normalized if no mapping
     return en_result
 
 
@@ -422,13 +480,18 @@ def _auto_tag_untagged():
     import json as _j
     try:
         db2 = get_db()
+
+        # Non-Luogu: only pick up truly empty tags
         rows = db2.execute(
             "SELECT DISTINCT problem_id, title, platform FROM submissions "
-            "WHERE tags='[]' OR tags=''"
+            "WHERE platform != 'luogu' AND (tags='[]' OR tags='')"
         ).fetchall()
-        if not rows:
-            print("  [TAGGER] No untagged problems")
-            return
+
+        # Luogu: pick up all problems — tags may be numeric IDs like ["1","7","24"]
+        lg_rows = db2.execute(
+            "SELECT DISTINCT problem_id, title, platform, tags FROM submissions "
+            "WHERE platform = 'luogu'"
+        ).fetchall()
 
         seen = set()
         all_problems = []
@@ -438,28 +501,37 @@ def _auto_tag_untagged():
                 seen.add(key)
                 all_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
 
-        # Step 1: Serial scrape Luogu problem pages for tags (no threads — curl_cffi incompatible)
-        lg_problems = [p for p in all_problems if p["platform"] == "luogu"]
-        ai_problems = [p for p in all_problems if p["platform"] != "luogu"]
+        # Luogu: re-scrape all problems from detail pages (tags are authoritative)
+        lg_problems = []
+        for r in lg_rows:
+            key = f"luogu:{r['problem_id']}"
+            if key in seen:
+                continue
+            seen.add(key)
+            lg_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": "luogu"})
+
+        if not lg_problems and not all_problems:
+            print("  [TAGGER] No untagged problems")
+            return
+
+        ai_problems = [p for p in all_problems]
         updated = 0
 
+        # Step 1: Serial scrape Luogu problem pages for tags (no threads — curl_cffi incompatible)
         if lg_problems:
             print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems (serial)...")
             for i, p in enumerate(lg_problems):
                 if i % 50 == 0:
                     print(f"  [TAGGER]   progress {i}/{len(lg_problems)}")
-                    db2.commit()  # Commit periodically
+                    db2.commit()
                 cn_tags = _scrape_luogu_tags(p["problem_id"])
                 if cn_tags:
-                    en_tags = _cn_to_en_tags(cn_tags)
-                    tags_json = _j.dumps(en_tags, ensure_ascii=False)
+                    tags_json = _j.dumps(cn_tags, ensure_ascii=False)
                     db2.execute(
-                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=? AND (tags='[]' OR tags='')",
+                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=?",
                         (tags_json, p["problem_id"])
                     )
                     updated += 1
-                else:
-                    ai_problems.append(p)
             db2.commit()
             print(f"  [TAGGER] Luogu scrape: {updated} tagged")
 
@@ -487,7 +559,9 @@ def _auto_tag_untagged():
                 plat = p["platform"]
                 tags = tag_map.get(pid, [])
                 if tags:
-                    tags_json = _j.dumps(tags, ensure_ascii=False)
+                    from tag_map import TAG_CN as _tag_cn
+                    cn_tags = [_tag_cn.get(t.lower(), t.lower()) for t in tags]
+                    tags_json = _j.dumps(cn_tags, ensure_ascii=False)
                     db2.execute(
                         "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
                         (tags_json, plat, pid)
@@ -502,6 +576,21 @@ def _auto_tag_untagged():
         import traceback
         print(f"  [TAGGER] Auto-tag failed: {e}")
         traceback.print_exc()
+        raise
+
+
+def _run_auto_tag_task(task_id: str):
+    """Run auto-tagging in a background task so the HTTP handler stays responsive."""
+    tm = _task_mgr
+    try:
+        tm.update(task_id, status="running", message="开始补全题目标签...", progress=0.05)
+        _auto_tag_untagged()
+        tm.update(task_id, status="done", message="标签补全完成", progress=1.0)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"  [TAGGER] Task {task_id} failed: {e}")
+        tm.update(task_id, status="failed", error=f"{e}\n{tb[-500:]}", message="标签补全失败")
 
 
 
@@ -563,21 +652,31 @@ def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""
         for s in all_subs:
             tags_json = json.dumps(s.tags, ensure_ascii=False)
             diff = s.difficulty or 0
+            record_id = str(getattr(s, "record_id", "") or "")
+            if record_id:
+                db.execute(
+                    "UPDATE OR IGNORE submissions SET record_id=? "
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "AND (record_id='' OR record_id IS NULL)",
+                    (record_id, user_id, s.platform, s.problem_id, s.submit_time, s.result, s.language)
+                )
             db.execute(
                 "INSERT OR IGNORE INTO submissions "
-                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url, record_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, s.platform, s.problem_id, s.title, diff,
                  tags_json, s.result, s.submit_time,
-                 s.language, s.url)
+                 s.language, s.url, record_id)
             )
             # Update tags/difficulty if server has new data
             if (diff and diff > 0) or (tags_json and tags_json != '[]'):
                 db.execute(
                     "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
                     "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=?",
-                    (diff, diff, tags_json, tags_json, user_id, s.platform, s.problem_id, s.submit_time, s.result)
+                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "AND COALESCE(record_id, '')=?",
+                    (diff, diff, tags_json, tags_json,
+                     user_id, s.platform, s.problem_id, s.submit_time, s.result, s.language, record_id)
                 )
             count += 1
         db.commit()
@@ -697,7 +796,7 @@ def transform_cf(sub):
         "problemId": f"{prob.get('contestId','')}{prob.get('index','')}",
         "name": prob.get("name", ""),
         "difficulty": prob.get("rating", 0) or 0,
-        "tags": [t.lower() for t in prob.get("tags", []) if t.lower() != "*special"],
+        "tags": [TAG_CN.get(t.lower(), t.lower()) for t in prob.get("tags", []) if t.lower() != "*special"],
         "result": result,
         "date": date,
         "language": sub.get("programmingLanguage", ""),
@@ -732,11 +831,9 @@ def transform_lg(rec):
     ts = rec.get("submitTime", 0) or rec.get("time", 0)
     date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else ""
     lg_diff = prob.get("difficulty", 0)
-    tags = prob.get("tags", []) or []
-    if isinstance(tags, list) and tags and isinstance(tags[0], dict):
-        tags = [t.get("name", str(t)) for t in tags]
-    else:
-        tags = [str(t) for t in tags]
+    # Tags from /record/list API are unreliable (English abbreviations, inconsistent names).
+    # Let _auto_tag_untagged() resolve them via the problem detail API + official tag map.
+    tags = []
     lang = rec.get("language", "")
     if isinstance(lang, int):
         LG_LANG = {
@@ -1404,6 +1501,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     import json as _j
                     with open(BOUND_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
                         accounts = _j.load(f)
+                # Keep old cookie if new value is empty or masked placeholder
+                if not cookie or cookie.strip() == "***":
+                    old = accounts.get(platform, {})
+                    cookie = old.get("cookie", "") if isinstance(old, dict) else ""
                 accounts[platform] = {"username": username, "cookie": cookie}
                 import json as _j
                 with open(BOUND_ACCOUNTS_FILE, "w", encoding="utf-8") as f:
@@ -1540,7 +1641,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "tags": _j.loads(r["tags"]) if r["tags"] else [],
                         "result": r["result"],
                         "date": (r["submit_time"] or "")[:10],
+                        "submitTime": r["submit_time"],
                         "language": r["language"],
+                        "url": r["url"],
+                        "recordId": r["record_id"],
                     })
                 self._send_json(result)
 
@@ -1584,8 +1688,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # ---- AI Auto-tag (all platforms) ----
             elif path == "/api/auto-tag" and self.command == "POST":
                 print("  [TAGGER] Auto-tag triggered from frontend")
-                _auto_tag_untagged()
-                self._send_json({"ok": True})
+                task = _task_mgr.create("auto-tag", "all")
+                threading.Thread(target=_run_auto_tag_task, args=(task.task_id,), daemon=True).start()
+                self._send_json({"ok": True, "task_id": task.task_id})
 
             # ---- Clear data ----
             elif path == "/api/clear-data" and self.command == "POST":

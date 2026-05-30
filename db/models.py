@@ -26,6 +26,7 @@ class SubmissionRecord:
     language: str = ""
     code: str = ""
     url: str = ""
+    record_id: str = ""
 
 
 @dataclass
