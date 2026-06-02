@@ -1534,8 +1534,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                 db = get_db()
                 import json as _j
-                config = AnalysisConfig()
-                all_weaknesses = []
+                all_subs = []
 
                 for plat, acc in accounts.items():
                     uname = acc.get("username", "")
@@ -1551,11 +1550,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "SELECT * FROM submissions WHERE user_id=? AND platform=?",
                         (user_row["id"], plat)
                     ).fetchall()
-                    if not rows:
-                        continue
-                    subs = []
                     for r in rows:
-                        subs.append({
+                        all_subs.append({
                             "platform": r["platform"],
                             "problemId": r["problem_id"],
                             "name": r["title"],
@@ -1563,57 +1559,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             "tags": _j.loads(r["tags"]) if r["tags"] else [],
                             "result": r["result"],
                             "date": (r["submit_time"] or "")[:10],
+                            "submitTime": r["submit_time"],
                             "language": r["language"],
                         })
-                    try:
-                        builder = ReportBuilder()
-                        report = builder.build(subs, config)
-                        for w in report.get("weaknesses", []):
-                            w["_platform"] = plat
-                            w["_username"] = uname
-                            all_weaknesses.append(w)
-                    except Exception as e:
-                        print(f"  [WEAKTOP5] Analysis failed for {plat}/{uname}: {e}")
 
-                # Merge same-tag weaknesses across platforms
-                merged = {}
-                for w in all_weaknesses:
-                    tag = w.get("tag", "")
-                    if tag not in merged:
-                        merged[tag] = {
-                            "tag": tag,
-                            "tag_raw": w.get("tag_raw", tag),
-                            "triggered_rules": set(w.get("triggered_rules", [])),
-                            "platforms": [w.get("_platform", "")],
-                            "total_submissions": w.get("stats", {}).get("total", 0),
-                            "ac_count": w.get("stats", {}).get("ac", 0),
-                            "total_problems": w.get("stats", {}).get("total", 0),
-                            "pass_rate": w.get("stats", {}).get("rate", 0),
-                            "avg_attempts": w.get("stats", {}).get("avg_attempts", 0),
+                if not all_subs:
+                    self._send_json({"weaknesses": [], "message": "无提交数据"})
+                    return
+
+                from weakness_scorer import compute_knowledge_points, calculate_weakness_top5
+                points = compute_knowledge_points(all_subs)
+                top5 = calculate_weakness_top5(points)
+
+                # Map tag IDs to Chinese names
+                for r in top5:
+                    r.name = TAG_CN.get(r.id, r.id)
+
+                self._send_json({
+                    "weaknesses": [
+                        {
+                            "id": r.id,
+                            "name": r.name,
+                            "score": r.score,
+                            "level": r.level,
+                            "reasons": r.reasons,
+                            "ac_rate": r.ac_rate,
+                            "ac_rate_pct": r.ac_rate_pct,
+                            "problem_count": r.problem_count,
+                            "avg_attempts": round(r.avg_attempts, 1),
+                            "rule_count": r.rule_count,
                         }
-                    else:
-                        m = merged[tag]
-                        m["triggered_rules"].update(w.get("triggered_rules", []))
-                        if w.get("_platform", "") not in m["platforms"]:
-                            m["platforms"].append(w.get("_platform", ""))
-                        m["total_submissions"] += w.get("stats", {}).get("total", 0)
-                        m["ac_count"] += w.get("stats", {}).get("ac", 0)
-                        m["total_problems"] += w.get("stats", {}).get("total", 0)
-
-                # Score: triggered_rules count * 100 + (1 - pass_rate) * 200 + problem count bonus
-                scored = []
-                for tag, m in merged.items():
-                    rule_score = len(m["triggered_rules"]) * 100
-                    pass_penalty = (1 - m["pass_rate"]) * 200 if m["pass_rate"] > 0 else 300
-                    size_bonus = min(m["total_problems"], 20)
-                    m["score"] = rule_score + pass_penalty + size_bonus
-                    m["triggered_rules"] = sorted(m["triggered_rules"])
-                    m["pass_rate_pct"] = round(m["pass_rate"] * 100)
-                    scored.append(m)
-
-                scored.sort(key=lambda x: x["score"], reverse=True)
-                top5 = scored[:5]
-                self._send_json({"weaknesses": top5})
+                        for r in top5
+                    ]
+                })
 
             elif path.startswith("/api/v2/analysis/") and self.command == "GET":
                 # path: /api/v2/analysis/{platform}/{username}

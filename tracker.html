@@ -385,7 +385,7 @@ tr:hover td { background: #f8fafc; }
     <div class="card"><div class="card-header">平台 AC 率对比</div><canvas id="chart-platform-radar" height="120"></canvas></div>
   </div>
   <div class="card">
-    <div class="card-header">薄弱知识点 Top 5</div>
+    <div class="card-header">薄弱知识点 Top 5 <span class="diff-helper" onclick="showWeakRuleModal()" title="评分规则说明" style="cursor:pointer;color:var(--accent);font-weight:400;font-size:11px;margin-left:6px;">&#9432; 规则</span></div>
     <div id="weak-top5"></div>
   </div>
   <div class="card">
@@ -545,7 +545,7 @@ function renderDiffChart(){if(typeof Chart==='undefined')return;destroyChart('di
 
 function renderPlatformRadar(){if(typeof Chart==='undefined')return;destroyChart('platformradar');const platMap={};problems.forEach(p=>{if(!platMap[p.platform])platMap[p.platform]={total:0,ac:0};platMap[p.platform].total++;if(normalizeResult(p.result)==='AC')platMap[p.platform].ac++;});const plats=Object.keys(platMap),canvasEl=document.getElementById('chart-platform-radar');if(plats.length<2){canvasEl.style.display='none';canvasEl.parentElement.appendChild(Object.assign(document.createElement('div'),{className:'nodata',textContent:'需要至少两个平台的数据'}));return;}canvasEl.style.display='';const ctx=canvasEl.getContext('2d');charts.platformradar=new Chart(ctx,{type:'radar',data:{labels:plats.map(k=>PLATFORM_NAMES[k]||k),datasets:[{label:'AC率',data:plats.map(k=>parseFloat((platMap[k].ac/platMap[k].total*100).toFixed(1))),backgroundColor:'rgba(13,148,136,.15)',borderColor:'#0d9488',pointBackgroundColor:'#0d9488'}]},options:{scales:{r:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}});}
 
-async function renderWeakTop5(){const cont=document.getElementById('weak-top5');cont.innerHTML='<div class="nodata" style="padding:20px;">分析中...</div>';try{const resp=await fetch(SERVER+'/api/v2/weak-top5');const data=await resp.json();const entries=data.weaknesses||[];if(entries.length===0){cont.innerHTML='<div class="weak-none">标签数据不足（AtCoder 无标签，洛谷/CF 同步后会出现），多刷几道题再来分析吧</div>';return;}const ruleLabel={pass_rate:'通过率',efficiency:'效率',trend:'趋势'};const sizes=[130,115,100,90,80],colors=['#dc2626','#ef4444','#f97316','#f59e0b','#eab308'];cont.innerHTML='<div class="bubble-row">'+entries.map((e,i)=>'<div class="bubble" style="width:'+sizes[i]+'px;height:'+sizes[i]+'px;background:'+colors[i]+';animation-delay:'+(i*0.1)+'s" title="通过率 '+e.pass_rate_pct+'% | '+e.ac_count+'AC/'+e.total_submissions+'提交 | 平台: '+e.platforms.join(',')+' | 触发: '+(e.triggered_rules||[]).map(r=>ruleLabel[r]||r).join(',')+' | 评分: '+Math.round(e.score)+'"><span class="bubble-rank">#'+(i+1)+'</span><span class="bubble-tag">'+cnTag(e.tag_raw||e.tag)+'</span><span class="bubble-rate">'+(e.pass_rate_pct||0)+'%</span></div>').join('')+'</div>';}catch(e){cont.innerHTML='<div class="weak-none">加载失败: '+e.message+'</div>';}}
+async function renderWeakTop5(){var cont=document.getElementById('weak-top5');cont.innerHTML='<div class="nodata" style="padding:20px;">分析中...</div>';try{var resp=await fetch(SERVER+'/api/v2/weak-top5');var data=await resp.json();var entries=data.weaknesses||[];if(entries.length===0){cont.innerHTML='<div class="weak-none">标签数据不足（每题至少需要5道题的数据），多刷几道题再来分析吧</div>';return;}var levelColors={};levelColors['严重薄弱']='#dc2626';levelColors['需要加强']='#f97316';levelColors['一般']='#f59e0b';levelColors['掌握较好']='#10b981';var sizes=[130,115,100,90,80];var colors=['#dc2626','#ef4444','#f97316','#f59e0b','#eab308'];var bubbles='';var cards='';for(var i=0;i<entries.length;i++){var e=entries[i];var titleParts=['评分: '+e.score,'等级: '+e.level,'AC率: '+e.ac_rate_pct+'%','做题量: '+e.problem_count+'题','平均尝试: '+e.avg_attempts+'次'];if(e.reasons&&e.reasons.length>0)titleParts.push('原因: '+e.reasons.join('; '));bubbles+='<div class=\"bubble\" style=\"width:'+sizes[i]+'px;height:'+sizes[i]+'px;background:'+colors[i]+';animation-delay:'+(i*0.1)+'s\" title=\"'+titleParts.join(' | ')+'\"><span class=\"bubble-rank\">#'+(i+1)+'</span><span class=\"bubble-tag\">'+cnTag(e.id)+'</span><span class=\"bubble-rate\">'+e.ac_rate_pct+'%</span></div>';var lvlColor=levelColors[e.level]||'#94a3b8';var reasonsText=(e.reasons||[]).join(' / ');cards+='<div style=\"display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-white);border:1px solid var(--border);border-radius:var(--radius-sm);\"><span style=\"font-weight:700;color:'+(colors[i]||'#94a3b8')+';font-size:14px;\">#'+(i+1)+'</span><span style=\"font-weight:600;font-size:13px;\">'+cnTag(e.id)+'</span><span style=\"font-size:11px;padding:2px 8px;border-radius:10px;color:#fff;background:'+lvlColor+';\">'+e.level+'</span><span style=\"font-size:12px;color:var(--text-muted);\">'+e.problem_count+'题 | AC率 '+e.ac_rate_pct+'% | 均尝试 '+e.avg_attempts+'次</span><span style=\"font-size:11px;color:var(--text-secondary);margin-left:auto;\">'+reasonsText+'</span></div>';}cont.innerHTML='<div class=\"bubble-row\">'+bubbles+'</div><div style=\"margin-top:12px;display:flex;flex-direction:column;gap:6px;\">'+cards+'</div>';}catch(err){cont.innerHTML='<div class=\"weak-none\">加载失败: '+err.message+'</div>';}}
 
 document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));tab.classList.add('active');const name=tab.dataset.tab;document.getElementById('section-'+name).classList.add('active');if(name==='overview')renderOverview();if(name==='analysis')renderAnalysis();if(name==='accounts')renderAccounts();if(name==='report')renderReportConfig();});});
 function renderAll(){renderTable();updateFilterTags();renderTagSelector();const activeTab=document.querySelector('.tab.active').dataset.tab;if(activeTab==='overview')renderOverview();if(activeTab==='analysis')renderAnalysis();}
@@ -641,10 +641,47 @@ updateCookieHint();
 </tbody></table>
 </div>
 </div>
+<div class="diff-modal-overlay" id="weak-rule-modal">
+<div class="diff-modal">
+<button class="close-btn" onclick="hideWeakRuleModal()">&times;</button>
+<h3>薄弱知识点 Top5 评分规则</h3>
+
+<h4>评分维度（加权）</h4>
+<table>
+<tr><th>维度</th><th>权重</th><th>说明</th></tr>
+<tr><td>AC率</td><td>40%</td><td>越低越薄弱。acScore = (1 - AC率) × 100</td></tr>
+<tr><td>尝试次数</td><td>20%</td><td>越多越薄弱。所有知识点的 avgAttempts Min-Max 归一化到 0~100</td></tr>
+<tr><td>耗时</td><td>15%</td><td>越长越薄弱。avgTime Min-Max 归一化</td></tr>
+<tr><td>后半区失衡</td><td>15%</td><td>前后半区正确率下降越多越薄弱。gapScore = max(0, 前半区ACC - 后半区ACC) × 100</td></tr>
+<tr><td>学习斜率</td><td>10%</td><td>越平/越负越薄弱。每周AC率线性回归，归一化后取反</td></tr>
+</table>
+
+<h4>样本量修正</h4>
+<p style="font-size:12px;line-height:1.6;">如果某个知识点做题量不足，置信度会打折：<br><b>finalScore = weaknessScore × min(1, problemCount / 20)</b><br>即：做题量 ≥ 20 题时完全置信；少于 20 题按比例打折。</p>
+
+<h4>过滤规则</h4>
+<p style="font-size:12px;line-height:1.6;">做题量 <b>&lt; 5 题</b> 的知识点不参与 Top5 排名（样本太少无法可靠评估）。</p>
+
+<h4>等级划分</h4>
+<table>
+<tr><th>finalScore</th><th>等级</th></tr>
+<tr><td>≥ 60</td><td style="color:#dc2626;font-weight:700;">严重薄弱</td></tr>
+<tr><td>35 ~ 59</td><td style="color:#f97316;font-weight:700;">需要加强</td></tr>
+<tr><td>15 ~ 34</td><td style="color:#f59e0b;">一般</td></tr>
+<tr><td>&lt; 15</td><td style="color:#10b981;">掌握较好</td></tr>
+</table>
+
+<h4>原因生成</h4>
+<p style="font-size:12px;line-height:1.6;">根据各维度得分自动生成最多 3 个薄弱原因：AC率明显偏低、平均尝试次数较高、解题耗时较长、经常卡在后半部分、近期进步较慢。</p>
+</div>
+</div>
 <script>
 function showDiffModal(){document.getElementById('diff-modal').classList.add('show');}
 function hideDiffModal(){document.getElementById('diff-modal').classList.remove('show');}
+function showWeakRuleModal(){document.getElementById('weak-rule-modal').classList.add('show');}
+function hideWeakRuleModal(){document.getElementById('weak-rule-modal').classList.remove('show');}
 document.getElementById('diff-modal').addEventListener('click',function(e){if(e.target===this)hideDiffModal();});
+document.getElementById('weak-rule-modal').addEventListener('click',function(e){if(e.target===this)hideWeakRuleModal();});
 </script>
 </body>
 </html>
