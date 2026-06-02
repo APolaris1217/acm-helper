@@ -24,6 +24,8 @@ class WeeklyReportScheduler:
         self._thread = None
         self._last_sent_week = None  # 防止同一周重复发送
         self._bound_accounts: dict[str, dict] = {}  # platform -> {username, cookie}
+        self._last_periodic_sync = 0  # 上次定时同步的时间戳
+        self._periodic_interval = 6 * 3600  # 每 6 小时同步一次
 
     def start(self):
         if self._running:
@@ -55,6 +57,7 @@ class WeeklyReportScheduler:
         while self._running:
             try:
                 self._check_and_send()
+                self._check_periodic_sync()
             except Exception as e:
                 print(f"  [SCHEDULER ERR] {e}")
 
@@ -85,39 +88,73 @@ class WeeklyReportScheduler:
 
         print(f"  [SCHEDULER] 触发周报生成: {week_key}")
 
-        # 如果绑定了账户，自动爬取最新数据
-        for platform, account in self._bound_accounts.items():
+        # 收集所有平台数据
+        all_subs = []
+        accounts = list(self._bound_accounts.items())
+        for platform, account in accounts:
             username = account.get("username", "")
             if not username:
                 continue
-
             try:
                 self._refresh_data(platform, username, account.get("cookie", ""))
             except Exception as e:
                 print(f"  [SCHEDULER] 爬取失败 {platform}/{username}: {e}")
                 continue
+            subs = self._load_submissions(platform, username)
+            for s in subs:
+                s["_platform"] = platform
+                s["_username"] = username
+            all_subs.extend(subs)
 
-            # 生成并发送报告
+        if not all_subs:
+            print("  [SCHEDULER] 无提交数据，跳过周报")
+            return
+
+        # 生成统一综合周报
+        try:
+            from_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            to_date = now.strftime("%Y-%m-%d")
+            targets = [f"{p}: {a.get('username', '')}" for p, a in accounts if a.get("username", "")]
+            report = generate_report(
+                target=", ".join(targets),
+                from_date=from_date,
+                to_date=to_date,
+                submissions=all_subs,
+            )
+            subject = f"ACM 训练周报 - {to_date}"
+            send_report(report, subject)
+            print(f"  [SCHEDULER] 周报已发送: {subject}")
+        except Exception as e:
+            print(f"  [SCHEDULER] 周报发送失败: {e}")
+
+    def _check_periodic_sync(self):
+        """每隔 N 小时自动同步所有平台数据，保持数据新鲜"""
+        if not self._bound_accounts:
+            return
+        now = time.time()
+        # 首次跳过，让启动同步先完成
+        if self._last_periodic_sync == 0:
+            self._last_periodic_sync = now
+            return
+        if now - self._last_periodic_sync < self._periodic_interval:
+            return
+        self._last_periodic_sync = now
+        print(f"  [SCHEDULER] 定时同步触发（每 {self._periodic_interval // 3600}h）")
+        for platform, account in self._bound_accounts.items():
+            username = account.get("username", "")
+            if not username:
+                continue
             try:
-                submissions = self._load_submissions(platform, username)
-                if not submissions:
-                    print(f"  [SCHEDULER] 无数据 {platform}/{username}，跳过")
-                    continue
-
-                from_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-                to_date = now.strftime("%Y-%m-%d")
-
-                report = generate_report(
-                    target=f"{platform}: {username}",
-                    from_date=from_date,
-                    to_date=to_date,
-                    submissions=submissions,
-                )
-
-                subject = f"ACM 训练周报 - {username}({platform}) - {to_date}"
-                send_report(report, subject)
+                self._refresh_data(platform, username, account.get("cookie", ""))
+                print(f"  [SCHEDULER] 定时同步 {platform}/{username} OK")
             except Exception as e:
-                print(f"  [SCHEDULER] 报告发送失败 {platform}/{username}: {e}")
+                print(f"  [SCHEDULER] 定时同步 {platform}/{username} FAILED: {e}")
+        try:
+            import server as _sv
+            _sv._auto_tag_untagged()
+            print("  [SCHEDULER] 定时标签补全完成")
+        except Exception as e:
+            print(f"  [SCHEDULER] 定时标签补全失败: {e}")
 
     def _refresh_data(self, platform: str, username: str, cookie: str = ""):
         """爬取最新数据并写入数据库"""

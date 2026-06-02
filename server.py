@@ -35,6 +35,7 @@ from email_sender import load_config as load_email_config, save_config as save_e
 from report_generator import generate_report
 
 _task_mgr = TaskManager()
+_report_results = {}  # task_id -> list of report dicts
 _CRAWLERS = {
     "codeforces": CodeforcesCrawler(),
 }
@@ -475,9 +476,10 @@ def _scrape_nowcoder_content(problem_id):
         return ""
 
 
-def _auto_tag_untagged():
+def _auto_tag_untagged(task_id: str = None):
     """Auto-tag untagged problems — scrape Luogu detail pages first, AI as fallback."""
     import json as _j
+    tm = _task_mgr
     try:
         db2 = get_db()
 
@@ -512,17 +514,27 @@ def _auto_tag_untagged():
 
         if not lg_problems and not all_problems:
             print("  [TAGGER] No untagged problems")
+            if task_id:
+                tm.update(task_id, status="done", message="没有需要补全标签的题目", progress=1.0)
             return
 
         ai_problems = [p for p in all_problems]
         updated = 0
+        total_phases = (1 if lg_problems else 0) + (1 if ai_problems else 0)
 
         # Step 1: Serial scrape Luogu problem pages for tags (no threads — curl_cffi incompatible)
         if lg_problems:
-            print(f"  [TAGGER] Scraping tags for {len(lg_problems)} Luogu problems (serial)...")
+            lg_total = len(lg_problems)
+            phase_start = 0.05
+            phase_end = 0.5 if ai_problems else 0.95
+            print(f"  [TAGGER] Scraping tags for {lg_problems} Luogu problems (serial)...")
             for i, p in enumerate(lg_problems):
+                if i % 10 == 0 and task_id:
+                    tm.update(task_id, status="running",
+                              message=f"洛谷标签抓取中 {i}/{lg_total}",
+                              progress=phase_start + (phase_end - phase_start) * (i / lg_total))
                 if i % 50 == 0:
-                    print(f"  [TAGGER]   progress {i}/{len(lg_problems)}")
+                    print(f"  [TAGGER]   progress {i}/{lg_problems}")
                     db2.commit()
                 cn_tags = normalize_tags(_scrape_luogu_tags(p["problem_id"]))
                 if cn_tags:
@@ -534,13 +546,24 @@ def _auto_tag_untagged():
                     updated += 1
             db2.commit()
             print(f"  [TAGGER] Luogu scrape: {updated} tagged")
+            if task_id:
+                tm.update(task_id, status="running",
+                          message=f"洛谷标签抓取完成，已标记 {updated} 题",
+                          progress=phase_end)
 
         # Step 2: Serial scrape problem content, then AI fallback
         if ai_problems:
-            print(f"  [TAGGER] AI fallback for {len(ai_problems)} problems (serial)...")
+            ai_total = len(ai_problems)
+            phase_start = 0.5 if lg_problems else 0.05
+            scrape_end = phase_start + 0.3 * (1.0 - phase_start)
+            print(f"  [TAGGER] AI fallback for {ai_problems} problems (serial)...")
             for i, p in enumerate(ai_problems):
+                if i % 5 == 0 and task_id:
+                    tm.update(task_id, status="running",
+                              message=f"题目内容抓取中 {i}/{ai_total}",
+                              progress=phase_start + (scrape_end - phase_start) * (i / ai_total))
                 if i % 20 == 0:
-                    print(f"  [TAGGER]   progress {i}/{len(ai_problems)}")
+                    print(f"  [TAGGER]   progress {i}/{ai_problems}")
                 content = _scrape_problem_content(p["platform"], p["problem_id"])
                 if content:
                     p["content"] = content
@@ -550,6 +573,11 @@ def _auto_tag_untagged():
                 ).fetchone()
                 if row and row["d"]:
                     p["difficulty"] = row["d"]
+
+            if task_id:
+                tm.update(task_id, status="running",
+                          message=f"AI 标签推断中（共 {ai_total} 题）...",
+                          progress=scrape_end + 0.1 * (1.0 - scrape_end))
 
             from ai.deepseek_tagger import auto_tag_batch
             tag_map = auto_tag_batch(ai_problems)
@@ -570,6 +598,10 @@ def _auto_tag_untagged():
             db2.commit()
             updated += ai_updated
             print(f"  [TAGGER] AI fallback: {ai_updated} tagged")
+            if task_id:
+                tm.update(task_id, status="running",
+                          message=f"AI 标签推断完成，已标记 {ai_updated} 题",
+                          progress=0.95)
 
         print(f"  [TAGGER] Total updated: {updated}")
     except Exception as e:
@@ -579,12 +611,135 @@ def _auto_tag_untagged():
         raise
 
 
+def _run_report_preview_task(task_id: str, platform: str):
+    """Generate combined report preview in background with progress updates."""
+    tm = _task_mgr
+    try:
+        sched = get_scheduler()
+        if platform == "all":
+            accounts = _load_bound_accounts()
+            if not accounts:
+                tm.update(task_id, status="failed", error="没有绑定的账户")
+                return
+            entries = [(p, a.get("username", "")) for p, a in accounts.items() if a.get("username", "")]
+            if not entries:
+                tm.update(task_id, status="failed", error="没有有效的绑定账户")
+                return
+
+            # Phase 1: Collect submissions from all platforms (30% of progress)
+            all_subs = []
+            total = len(entries)
+            for i, (plat, uname) in enumerate(entries):
+                tm.update(task_id, status="running",
+                          message=f"收集 {plat}/{uname} 数据 ({i+1}/{total})...",
+                          progress=0.05 + 0.25 * (i / total))
+                subs = sched._load_submissions(plat, uname)
+                for s in subs:
+                    s["_platform"] = plat
+                    s["_username"] = uname
+                all_subs.extend(subs)
+
+            if not all_subs:
+                _report_results[task_id] = [{"platform": "all", "username": "综合", "report": "", "error": "所有平台均无提交数据"}]
+                tm.update(task_id, status="done", message="无数据可生成", progress=1.0)
+                return
+
+            # Phase 2: Generate one unified report (remaining 70%)
+            tm.update(task_id, status="running",
+                      message=f"AI 分析 {len(all_subs)} 条记录（{total} 个平台）...",
+                      progress=0.35)
+
+            targets = [f"{p}: {u}" for p, u in entries]
+            from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+            to_date = datetime.now().strftime("%Y-%m-%d")
+            try:
+                report = generate_report(
+                    target=", ".join(targets),
+                    from_date=from_date,
+                    to_date=to_date,
+                    submissions=all_subs,
+                )
+                _report_results[task_id] = [{"platform": "all", "username": "综合", "report": report}]
+            except Exception as e:
+                _report_results[task_id] = [{"platform": "all", "username": "综合", "report": "", "error": str(e)}]
+            tm.update(task_id, status="done", message="周报已生成", progress=1.0)
+        else:
+            tm.update(task_id, status="failed", error="单个平台预览请使用 platform=all")
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"  [REPORT] Task {task_id} failed: {e}")
+        tm.update(task_id, status="failed", error=f"{e}\n{tb[-300:]}",
+                  message="周报生成失败")
+
+
+def _run_report_send_task(task_id: str):
+    """Generate combined report AND send via email in background."""
+    tm = _task_mgr
+    try:
+        sched = get_scheduler()
+        accounts = _load_bound_accounts()
+        if not accounts:
+            tm.update(task_id, status="failed", error="没有绑定的账户")
+            return
+        entries = [(p, a.get("username", "")) for p, a in accounts.items() if a.get("username", "")]
+        if not entries:
+            tm.update(task_id, status="failed", error="没有有效的绑定账户")
+            return
+
+        # Phase 1: Collect submissions
+        all_subs = []
+        total = len(entries)
+        for i, (plat, uname) in enumerate(entries):
+            tm.update(task_id, status="running",
+                      message=f"收集 {plat}/{uname} 数据 ({i+1}/{total})...",
+                      progress=0.05 + 0.2 * (i / total))
+            subs = sched._load_submissions(plat, uname)
+            for s in subs:
+                s["_platform"] = plat
+                s["_username"] = uname
+            all_subs.extend(subs)
+
+        if not all_subs:
+            tm.update(task_id, status="failed", error="所有平台均无提交数据", message="无数据可发送")
+            return
+
+        # Phase 2: Generate unified report
+        tm.update(task_id, status="running",
+                  message=f"AI 分析 {len(all_subs)} 条记录...",
+                  progress=0.3)
+        targets = [f"{p}: {u}" for p, u in entries]
+        now = datetime.now()
+        from_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        to_date = now.strftime("%Y-%m-%d")
+        report = generate_report(
+            target=", ".join(targets),
+            from_date=from_date,
+            to_date=to_date,
+            submissions=all_subs,
+        )
+
+        # Phase 3: Send email
+        tm.update(task_id, status="running",
+                  message="正在发送邮件...",
+                  progress=0.85)
+        subject = f"ACM 训练周报 - {to_date}"
+        from email_sender import send_report as _send
+        _send(report, subject)
+        tm.update(task_id, status="done", message="周报已发送到邮箱", progress=1.0)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"  [REPORT-SEND] Task {task_id} failed: {e}")
+        tm.update(task_id, status="failed", error=f"{e}\n{tb[-300:]}",
+                  message="周报发送失败")
+
 def _run_auto_tag_task(task_id: str):
     """Run auto-tagging in a background task so the HTTP handler stays responsive."""
     tm = _task_mgr
     try:
         tm.update(task_id, status="running", message="开始补全题目标签...", progress=0.05)
-        _auto_tag_untagged()
+        _auto_tag_untagged(task_id)
         tm.update(task_id, status="done", message="标签补全完成", progress=1.0)
     except Exception as e:
         import traceback
@@ -1132,6 +1287,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_js(self, content, code=200):
+        body = content.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def _send_error(self, msg, code=400):
         self._send_json({"error": True, "message": msg}, code)
 
@@ -1178,6 +1342,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 with open(HTML_FILE, "r", encoding="utf-8") as f:
                     self._send_html(f.read())
+
+            elif path == "/chart.umd.min.js":
+                chart_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chart.umd.min.js")
+                if not os.path.exists(chart_path):
+                    self._send_error("chart.js not found", 500)
+                    return
+                with open(chart_path, "r", encoding="utf-8") as f:
+                    self._send_js(f.read())
+
+            elif path == "/marked.min.js":
+                marked_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marked.min.js")
+                if not os.path.exists(marked_path):
+                    self._send_error("marked.js not found", 500)
+                    return
+                with open(marked_path, "r", encoding="utf-8") as f:
+                    self._send_js(f.read())
 
             elif path == "/api/fetch/codeforces":
                 handle = params.get("handle", "").strip()
@@ -1345,6 +1525,95 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     import traceback
                     traceback.print_exc()
                     self._send_error(str(e), 500)
+
+            elif path == "/api/v2/weak-top5" and self.command == "GET":
+                accounts = _load_bound_accounts()
+                if not accounts:
+                    self._send_json({"weaknesses": [], "message": "没有绑定的账户"})
+                    return
+
+                db = get_db()
+                import json as _j
+                config = AnalysisConfig()
+                all_weaknesses = []
+
+                for plat, acc in accounts.items():
+                    uname = acc.get("username", "")
+                    if not uname:
+                        continue
+                    user_row = db.execute(
+                        "SELECT id FROM users WHERE platform=? AND username=?",
+                        (plat, uname)
+                    ).fetchone()
+                    if not user_row:
+                        continue
+                    rows = db.execute(
+                        "SELECT * FROM submissions WHERE user_id=? AND platform=?",
+                        (user_row["id"], plat)
+                    ).fetchall()
+                    if not rows:
+                        continue
+                    subs = []
+                    for r in rows:
+                        subs.append({
+                            "platform": r["platform"],
+                            "problemId": r["problem_id"],
+                            "name": r["title"],
+                            "difficulty": r["difficulty"],
+                            "tags": _j.loads(r["tags"]) if r["tags"] else [],
+                            "result": r["result"],
+                            "date": (r["submit_time"] or "")[:10],
+                            "language": r["language"],
+                        })
+                    try:
+                        builder = ReportBuilder()
+                        report = builder.build(subs, config)
+                        for w in report.get("weaknesses", []):
+                            w["_platform"] = plat
+                            w["_username"] = uname
+                            all_weaknesses.append(w)
+                    except Exception as e:
+                        print(f"  [WEAKTOP5] Analysis failed for {plat}/{uname}: {e}")
+
+                # Merge same-tag weaknesses across platforms
+                merged = {}
+                for w in all_weaknesses:
+                    tag = w.get("tag", "")
+                    if tag not in merged:
+                        merged[tag] = {
+                            "tag": tag,
+                            "tag_raw": w.get("tag_raw", tag),
+                            "triggered_rules": set(w.get("triggered_rules", [])),
+                            "platforms": [w.get("_platform", "")],
+                            "total_submissions": w.get("stats", {}).get("total", 0),
+                            "ac_count": w.get("stats", {}).get("ac", 0),
+                            "total_problems": w.get("stats", {}).get("total", 0),
+                            "pass_rate": w.get("stats", {}).get("rate", 0),
+                            "avg_attempts": w.get("stats", {}).get("avg_attempts", 0),
+                        }
+                    else:
+                        m = merged[tag]
+                        m["triggered_rules"].update(w.get("triggered_rules", []))
+                        if w.get("_platform", "") not in m["platforms"]:
+                            m["platforms"].append(w.get("_platform", ""))
+                        m["total_submissions"] += w.get("stats", {}).get("total", 0)
+                        m["ac_count"] += w.get("stats", {}).get("ac", 0)
+                        m["total_problems"] += w.get("stats", {}).get("total", 0)
+
+                # Score: triggered_rules count * 100 + (1 - pass_rate) * 200 + problem count bonus
+                scored = []
+                for tag, m in merged.items():
+                    rule_score = len(m["triggered_rules"]) * 100
+                    pass_penalty = (1 - m["pass_rate"]) * 200 if m["pass_rate"] > 0 else 300
+                    size_bonus = min(m["total_problems"], 20)
+                    m["score"] = rule_score + pass_penalty + size_bonus
+                    m["triggered_rules"] = sorted(m["triggered_rules"])
+                    m["pass_rate_pct"] = round(m["pass_rate"] * 100)
+                    scored.append(m)
+
+                scored.sort(key=lambda x: x["score"], reverse=True)
+                top5 = scored[:5]
+                self._send_json({"weaknesses": top5})
 
             elif path.startswith("/api/v2/analysis/") and self.command == "GET":
                 # path: /api/v2/analysis/{platform}/{username}
@@ -1534,22 +1803,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             elif path == "/api/email-config" and self.command == "GET":
                 cfg = load_email_config()
-                safe = dict(cfg)
-                safe["sender_password"] = "***" if cfg.get("sender_password") else ""
-                self._send_json(safe)
+                # 发件人信息由后端 sender_config.json 管理，不返回给前端
+                # 返回一个标记告知前端 SMTP 是否已配置
+                from email_sender import load_sender_config as _sc
+                snd = _sc()
+                cfg["sender_configured"] = bool(snd.get("sender_email") and snd.get("sender_password"))
+                self._send_json(cfg)
 
             elif path == "/api/email-config" and self.command == "POST":
                 body = self._read_body()
                 cfg = load_email_config()
-                for key in ("smtp_host", "smtp_port", "sender_email", "sender_password",
-                           "receiver_email", "schedule_day", "schedule_hour", "enabled",
+                # 只保存用户可配置的字段，忽略发件人相关字段
+                for key in ("receiver_email", "schedule_day", "schedule_hour", "enabled",
                            "deepseek_api_key"):
                     if key in body:
-                        val = body[key]
-                        # Keep old password if new value is masked placeholder or empty
-                        if key == "sender_password" and (not val or val.strip() == "***"):
-                            continue
-                        cfg[key] = val
+                        cfg[key] = body[key]
                 save_email_config(cfg)
                 if cfg.get("enabled"):
                     get_scheduler().reload_accounts()
@@ -1581,56 +1849,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 })
 
             # ---- Report preview ----
-            elif path == "/api/v2/report/preview" and self.command == "GET":
+            elif path == "/api/v2/report/preview" and self.command == "POST":
                 platform = params.get("platform", "").strip()
-                username = params.get("username", "").strip()
-                sched = get_scheduler()
+                task = _task_mgr.create("report", platform or "all")
+                threading.Thread(target=_run_report_preview_task, args=(task.task_id, platform), daemon=True).start()
+                self._send_json({"ok": True, "task_id": task.task_id})
 
-                if platform == "all":
-                    accounts = _load_bound_accounts()
-                    if not accounts:
-                        self._send_error("没有绑定的账户", 400)
-                        return
-                    results = []
-                    for plat, acc in accounts.items():
-                        uname = acc.get("username", "")
-                        if not uname:
-                            continue
-                        subs = sched._load_submissions(plat, uname)
-                        if not subs:
-                            results.append({"platform": plat, "username": uname, "report": "", "error": "无提交数据"})
-                            continue
-                        try:
-                            report = generate_report(
-                                target=f"{plat}: {uname}",
-                                from_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-                                to_date=datetime.now().strftime("%Y-%m-%d"),
-                                submissions=subs,
-                            )
-                            results.append({"platform": plat, "username": uname, "report": report})
-                        except Exception as e:
-                            results.append({"platform": plat, "username": uname, "report": "", "error": str(e)})
-                    self._send_json({"reports": results})
-                    return
+            elif path.startswith("/api/v2/report/result/") and self.command == "GET":
+                task_id = path.rsplit("/", 1)[-1]
+                result = _report_results.get(task_id)
+                if result is not None:
+                    self._send_json({"reports": result})
+                else:
+                    self._send_error("任务未完成或不存在", 404)
 
-                if not platform or not username:
-                    self._send_error("Missing platform or username", 400)
-                    return
+            elif path == "/api/v2/report/send" and self.command == "POST":
+                task = _task_mgr.create("report-send", "all")
+                threading.Thread(target=_run_report_send_task, args=(task.task_id,), daemon=True).start()
+                self._send_json({"ok": True, "task_id": task.task_id})
 
-                subs = sched._load_submissions(platform, username)
-                if not subs:
-                    self._send_json({"reports": [{"platform": platform, "username": username, "report": "", "error": "无提交数据"}]})
+            elif path == "/api/v2/report/send-only" and self.command == "POST":
+                body = self._read_body()
+                report_text = body.get("report", "").strip()
+                if not report_text:
+                    self._send_error("报告内容为空", 400)
                     return
                 try:
-                    report = generate_report(
-                        target=f"{platform}: {username}",
-                        from_date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
-                        to_date=datetime.now().strftime("%Y-%m-%d"),
-                        submissions=subs,
-                    )
-                    self._send_json({"reports": [{"platform": platform, "username": username, "report": report}]})
+                    from email_sender import send_report
+                    now = datetime.now()
+                    send_report(report_text, f"ACM 训练周报 - {now.strftime('%Y-%m-%d')}")
+                    self._send_json({"ok": True, "message": "周报已发送"})
                 except Exception as e:
-                    self._send_json({"reports": [{"platform": platform, "username": username, "report": "", "error": str(e)}]})
+                    self._send_error(str(e), 500)
 
             elif path == "/api/scheduler/trigger" and self.command == "POST":
                 body = self._read_body()
@@ -1698,6 +1948,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                 threading.Thread(target=_manual_report, daemon=True).start()
                 self._send_json({"ok": True, "message": f"周报生成已触发: {platform}/{username}"})
+
+            # ---- Get last sync time ----
+            elif path == "/api/v2/last-sync" and self.command == "GET":
+                db = get_db()
+                row = db.execute("SELECT MAX(last_crawl_at) as last_sync FROM users").fetchone()
+                last_sync = row["last_sync"] if row else None
+                self._send_json({"last_sync": last_sync})
 
             # ---- Get submissions for bound accounts ----
             elif path == "/api/v2/submissions" and self.command == "GET":
@@ -1852,6 +2109,31 @@ def main():
         print(f"  打开浏览器访问: http://localhost:{PORT}")
         print(f"  按 Ctrl+C 停止")
         print(f"=" * 60)
+
+    # 启动时自动同步所有已绑定账户（后台线程，不阻塞服务）
+    accounts = _load_bound_accounts()
+    if accounts:
+        def _startup_sync():
+            import time as _time
+            _time.sleep(2)  # 等服务完全启动
+            print("  [AUTO-SYNC] 后台同步已绑定账户...")
+            sched = get_scheduler()
+            for plat, acc in accounts.items():
+                uname = acc.get("username", "")
+                if not uname:
+                    continue
+                try:
+                    sched._refresh_data(plat, uname, acc.get("cookie", ""))
+                    print(f"  [AUTO-SYNC] {plat}/{uname} OK")
+                except Exception as e:
+                    print(f"  [AUTO-SYNC] {plat}/{uname} FAILED: {e}")
+            try:
+                _auto_tag_untagged()
+                print("  [AUTO-SYNC] 标签补全完成")
+            except Exception as e:
+                print(f"  [AUTO-SYNC] 标签补全失败: {e}")
+            print("  [AUTO-SYNC] 启动同步完成")
+        threading.Thread(target=_startup_sync, daemon=True).start()
 
     addr = ("0.0.0.0", PORT)
     server = http.server.HTTPServer(addr, Handler)
