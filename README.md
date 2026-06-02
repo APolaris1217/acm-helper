@@ -1,11 +1,18 @@
 # ACM Helper
 
-本地竞技编程（OJ）刷题记录与薄弱分析平台，支持 Codeforces、洛谷、AtCoder、NowCoder 多平台提交自动同步，基于提交行为模式进行智能弱点分析，支持每周 AI 报告邮件推送。
+跨平台 OJ 刷题记录与薄弱分析工具。自动同步 Codeforces、洛谷、AtCoder、NowCoder 四平台提交，多维度薄弱知识点评分，支持 AI 周报邮件推送。
 
 ## 快速开始
 
 ```bash
-pip install requests beautifulsoup4 curl_cffi
+# 安装依赖
+pip install requests beautifulsoup4 curl_cffi markdown
+
+# 配置发件邮箱（用于周报推送）
+cp sender_config.example.json sender_config.json
+# 编辑 sender_config.json 填入你的 SMTP 信息
+
+# 启动
 NO_PROXY=* python server.py
 ```
 
@@ -14,39 +21,55 @@ NO_PROXY=* python server.py
 ## 项目结构
 
 ```
-├── server.py              # HTTP 服务 + API 路由 + 平台抓取器
-├── tracker.html           # 前端单页 (vanilla JS + Chart.js)
-├── analyzer.py            # 薄弱分析引擎 (行为模式加权)
-├── scheduler.py           # 每周报告定时调度
-├── report_generator.py    # Markdown 报告生成
+├── server.py              # HTTP 服务 + API 路由 + 平台抓取
+├── tracker.html           # 前端单页 (vanilla JS + Chart.js + marked)
+├── scheduler.py           # 定时调度 (周报 + 定时同步)
+├── report_generator.py    # AI 周报生成 (DeepSeek)
 ├── email_sender.py        # SMTP 邮件发送
-├── tag_map.py             # 中英文算法标签映射
-├── requirement.rm         # 报告模板
+├── analyzer.py            # v1 薄弱分析 (行为模式加权)
+├── weakness_scorer.py     # v2 薄弱评分 (五维加权)
+├── tag_map.py             # 中英文标签映射
+├── requirement.rm         # 周报 Prompt 模板
 ├── crawler/               # 多平台爬虫 + 任务管理
 ├── db/                    # SQLite 数据层
-├── engine/                # 新版分析引擎 (策略模式)
-└── ai/                    # DeepSeek API 自动标签推断
+├── engine/                # v2 策略引擎 (多规则)
+└── ai/                    # DeepSeek 标签推断
 ```
 
-## API 端点
+## 使用流程
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/` | 前端页面 |
-| `GET` | `/api/v2/submissions` | 获取已存储的提交记录 |
-| `POST` | `/api/v2/sync-all` | 同步所有绑定账号 |
-| `POST` | `/api/v2/crawl/start` | 启动爬虫任务 |
-| `GET` | `/api/v2/crawl/progress/{id}` | 查询爬虫进度 |
-| `GET` | `/api/v2/analysis/{platform}/{username}` | 薄弱分析 |
-| `POST` | `/api/accounts/bind` | 绑定/解绑平台账号 |
-| `POST` | `/api/auto-tag` | AI 标签推断 |
-| `POST` | `/api/email-config` | SMTP + API Key 配置 |
-| `POST` | `/api/scheduler/trigger` | 触发定时报告 |
-| `POST` | `/api/analyze` | 薄弱分析 (旧版) |
+1. **绑定账户** — 在「账户绑定」页面添加各平台用户名/Cookie
+2. **同步数据** — 点击「同步全部已绑定账户」（服务器启动时也会自动同步）
+3. **查看分析** — 切到「数据总览」「薄弱分析」查看图表和 Top5
+4. **周报推送** — 配置邮箱后可预览/发送 AI 生成的训练周报
 
-## 数据流
+## 薄弱知识点评分规则
 
-1. **绑定账号** → POST `/api/accounts/bind`
-2. **同步** → POST `/api/v2/sync-all` → 后台线程爬取各平台 → 写入 SQLite
-3. **前端加载** → `loadFromServer()` → 合并到 `localStorage.problem_tracker_data`
-4. **分析** → 基于 WA/TLE/CE/盲交等行为加权评分 → 生成薄弱报告
+五维度加权评分，样本量修正，过滤 <5 题的知识点：
+
+| 维度 | 权重 | 说明 |
+|---|---|---|
+| AC 率 | 40% | 越低越薄弱 |
+| 平均尝试次数 | 20% | 越多越薄弱 (Min-Max 归一化) |
+| 解题耗时 | 15% | 越长越薄弱 |
+| 后半区失衡 | 15% | 前后半区正确率差距 |
+| 学习斜率 | 10% | 每周 AC 率线性回归 |
+
+`finalScore = rawScore × min(1, problemCount / 20)`
+
+## 配置说明
+
+| 文件 | 用途 | Git |
+|---|---|---|
+| `sender_config.json` | SMTP 服务器/发件邮箱/授权码 | ❌ 不入库 |
+| `email_config.json` | 收件邮箱/调度/DeepSeek Key | ❌ 不入库 |
+| `bound_accounts.json` | 各平台账户/Cookie | ❌ 不入库 |
+| `acm_helper.db` | SQLite 数据 | ❌ 不入库 |
+
+## 注意事项
+
+- 需要 Python 3.10+
+- 洛谷和 AtCoder 需要 `curl_cffi` 绕过 Cloudflare
+- 洛谷和 NowCoder 需要登录 Cookie
+- 本地启用了 HTTP 代理时需设置 `NO_PROXY=*`
+- Chart.js 和 marked.js 已本地化，无需外网 CDN
