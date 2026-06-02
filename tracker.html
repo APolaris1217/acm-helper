@@ -274,7 +274,7 @@ tr:hover td { background: var(--accent-light); }
 .diff-modal td { padding: 6px 8px; border-bottom: 1.5px solid var(--border-light); color: var(--text-primary); }
 .diff-modal .close-btn { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); padding: 0 4px; }
 .diff-modal .close-btn:hover { color: var(--text-primary); }
-.diff-helper { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--border); color: var(--text-muted); font-size: 10px; text-align: center; line-height: 16px; cursor: pointer; margin-left: 4px; font-weight: 700; font-family: var(--font-sans); }
+.diff-helper { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; padding: 0; border-radius: 50%; background: var(--accent-light); color: var(--accent); font-size: 10px; cursor: pointer; margin-left: 5px; font-weight: 700; font-family: var(--font-sans); border: 1px solid var(--accent); }
 .diff-helper:hover { background: var(--accent); color: #fff; }
 
 /* ---- Sync ---- */
@@ -396,18 +396,12 @@ tr:hover td { background: var(--accent-light); }
     <div class="card"><div class="card-header">平台 AC 率对比</div><canvas id="chart-platform-radar" height="120"></canvas></div>
   </div>
   <div class="card">
-    <div class="card-header">薄弱知识点 Top 5 <span class="diff-helper" onclick="showWeakRuleModal()" title="评分规则说明" style="cursor:pointer;color:var(--accent);font-weight:400;font-size:11px;margin-left:6px;">&#9432; 规则</span></div>
+    <div class="card-header">薄弱知识点 Top 5 <span class="diff-helper" onclick="showWeakRuleModal()" title="评分规则">&#9432;</span></div>
     <div id="weak-top5"></div>
   </div>
   <div class="card">
-    <div class="card-header">策略引擎分析</div>
-    <p class="card-desc">基于三套独立规则的薄弱点判定 + 行为指标计算 + 改进建议</p>
-    <details class="rules-box">
-      <summary>判定规则说明</summary>
-      <div class="rule-item"><span class="rule-name">规则1：通过率策略</span><br>通过率 &lt; <span class="rule-threshold">30%</span> 判定为薄弱。</div>
-      <div class="rule-item"><span class="rule-name">规则2：效率策略</span><br>平均尝试 &gt; <span class="rule-threshold">3次</span> 或耗时 &gt; <span class="rule-threshold">1.5倍</span> 同类中位数。</div>
-      <div class="rule-item"><span class="rule-name">规则3：趋势策略</span><br>后半区正确率/前半区 &lt; <span class="rule-threshold">0.8</span> 或斜率 &lt; <span class="rule-threshold">0.05</span>。</div>
-    </details>
+    <div class="card-header">策略引擎分析 <span class="diff-helper" onclick="showWeakRuleModal()" title="评分规则">?</span></div>
+    <p class="card-desc">基于多维度评分的薄弱点判定 + 行为指标计算 + 改进建议</p>
     <button class="btn btn-primary" id="btn-engine-analyze">运行策略引擎分析</button>
     <span style="font-size:12px;color:var(--text-muted);margin-left:8px;" id="engine-analyze-status"></span>
     <div id="engine-report" style="margin-top:14px;"></div>
@@ -693,6 +687,34 @@ function showWeakRuleModal(){document.getElementById('weak-rule-modal').classLis
 function hideWeakRuleModal(){document.getElementById('weak-rule-modal').classList.remove('show');}
 document.getElementById('diff-modal').addEventListener('click',function(e){if(e.target===this)hideDiffModal();});
 document.getElementById('weak-rule-modal').addEventListener('click',function(e){if(e.target===this)hideWeakRuleModal();});
+function hideWelcome(){document.getElementById('welcome-modal').classList.remove('show');localStorage.setItem('welcome_seen','1');}
+document.addEventListener('DOMContentLoaded',function(){document.getElementById('welcome-modal').addEventListener('click',function(e){if(e.target===this)hideWelcome();});if(!localStorage.getItem('welcome_seen')){document.getElementById('welcome-modal').classList.add('show');}});
 </script>
+<div class="diff-modal-overlay" id="welcome-modal">
+<div class="diff-modal" style="padding:28px 32px;text-align:center;max-height:85vh;overflow-y:auto;">
+<div style="font-size:32px;margin-bottom:4px;">📊</div>
+<h3 style="font-size:20px;margin-bottom:4px;">欢迎使用 ACM Helper</h3>
+<p style="font-size:12px;color:var(--text-muted);margin-bottom:20px;">跨平台 OJ 刷题记录与薄弱分析工具</p>
+<div style="text-align:left;margin-bottom:20px;display:flex;flex-direction:column;gap:10px;">
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:var(--accent-light);border-radius:var(--radius-sm);border:1px solid var(--accent);">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;flex-shrink:0;">1</span>
+<div><div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:2px;">绑定平台账户</div><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">点击左侧「账户绑定」，添加 Codeforces / 洛谷 / AtCoder / NowCoder 账号。洛谷和牛客需要填写 Cookie。</div></div>
+</div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:#f0f8ff;border-radius:var(--radius-sm);border:1px solid var(--accent-blue);">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#3b82f6;color:#fff;font-size:13px;font-weight:700;flex-shrink:0;">2</span>
+<div><div style="font-weight:700;font-size:13px;color:#3b82f6;margin-bottom:2px;">同步提交记录</div><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">在「记录管理」页面点击「同步全部已绑定账户」，等待进度条完成。服务器每次启动也会自动同步。</div></div>
+</div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:#fff5f2;border-radius:var(--radius-sm);border:1px solid var(--accent-pink);">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#f97316;color:#fff;font-size:13px;font-weight:700;flex-shrink:0;">3</span>
+<div><div style="font-weight:700;font-size:13px;color:#f97316;margin-bottom:2px;">查看数据与分析</div><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">切到「数据总览」看热力图和图表；切到「薄弱分析」查看 Top5 薄弱知识点和策略引擎分析。</div></div>
+</div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:#f5f0ff;border-radius:var(--radius-sm);border:1px solid #c4b5fd;">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;flex-shrink:0;">4</span>
+<div><div style="font-weight:700;font-size:13px;color:#7c3aed;margin-bottom:2px;">配置周报推送（可选）</div><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">在「周报设置」填写收件邮箱和 DeepSeek API Key，即可预览/发送 AI 生成的训练周报。</div></div>
+</div>
+</div>
+<button class="btn btn-primary" onclick="hideWelcome()" style="font-size:14px;padding:10px 32px;">开始使用</button>
+</div>
+</div>
 </body>
 </html>
