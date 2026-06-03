@@ -4,6 +4,11 @@
 
 ## 快速开始
 
+```bash
+git clone https://github.com/APolaris1217/acm-helper.git
+cd acm-helper
+```
+
 ### 一键启动（推荐）
 
 ```powershell
