@@ -9,8 +9,11 @@ cache.json
 nc_diff_cache.json
 bound_accounts.json
 email_config.json
-# SMTP 发件人配置（含邮箱授权码），不上传。
-# 拉取项目后请复制 sender_config.example.json 并填入自己的 SMTP 信息
+# 敏感配置文件（含邮箱、API Key、平台 Cookie），不上传。
+# 拉取项目后运行 setup.ps1 / setup.sh 自动创建，或手动复制 *.example.json：
+#   cp sender_config.example.json sender_config.json
+#   cp email_config.example.json email_config.json
+#   cp bound_accounts.example.json bound_accounts.json
 sender_config.json
 problem_cache.json
 luogu_tags_cache.json

@@ -4,15 +4,33 @@
 
 ## 快速开始
 
+### 一键启动（推荐）
+
+```powershell
+# Windows:
+powershell -ExecutionPolicy Bypass -File setup.ps1
+
+# Linux/Mac:
+bash setup.sh
+```
+
+### 手动配置
+
 ```bash
-# 安装依赖
+# 1. 安装依赖
 pip install requests beautifulsoup4 curl_cffi markdown
 
-# 配置发件邮箱（用于周报推送）
+# 2. 复制配置文件模板
 cp sender_config.example.json sender_config.json
-# 编辑 sender_config.json 填入你的 SMTP 信息
+cp email_config.example.json email_config.json
+cp bound_accounts.example.json bound_accounts.json
 
-# 启动
+# 3. 编辑配置文件（可选，不影响基础功能）
+#    sender_config.json  → SMTP 发件信息
+#    email_config.json   → 收件邮箱 + DeepSeek Key
+#    bound_accounts.json → OJ 平台用户名
+
+# 4. 启动
 NO_PROXY=* python server.py
 ```
 
@@ -59,12 +77,12 @@ NO_PROXY=* python server.py
 
 ## 配置说明
 
-| 文件 | 用途 | Git |
-|---|---|---|
-| `sender_config.json` | SMTP 服务器/发件邮箱/授权码 | ❌ 不入库 |
-| `email_config.json` | 收件邮箱/调度/DeepSeek Key | ❌ 不入库 |
-| `bound_accounts.json` | 各平台账户/Cookie | ❌ 不入库 |
-| `acm_helper.db` | SQLite 数据 | ❌ 不入库 |
+| 文件 | 用途 | 模板文件 | Git |
+|---|---|---|---|
+| `sender_config.json` | SMTP 服务器/发件邮箱/授权码 | `sender_config.example.json` | ❌ 不入库 |
+| `email_config.json` | 收件邮箱/调度/DeepSeek Key | `email_config.example.json` | ❌ 不入库 |
+| `bound_accounts.json` | 各平台账户/Cookie | `bound_accounts.example.json` | ❌ 不入库 |
+| `acm_helper.db` | SQLite 数据 | (首次启动自动创建) | ❌ 不入库 |
 
 ## 注意事项
 

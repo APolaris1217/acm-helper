@@ -1,0 +1,8 @@
+{
+  "_instructions": "复制本文件为 email_config.json，填入你的接收邮箱和 DeepSeek API Key。\n\nDeepSeek API Key 获取：访问 platform.deepseek.com → API Keys → 创建新 API Key。\n不需要周报推送功能可跳过此步骤。",
+  "receiver_email": "你的邮箱@qq.com",
+  "schedule_day": 1,
+  "schedule_hour": 9,
+  "enabled": false,
+  "deepseek_api_key": "sk-你的DeepSeek-API-Key"
+}
