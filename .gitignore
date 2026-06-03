@@ -9,6 +9,8 @@ cache.json
 nc_diff_cache.json
 bound_accounts.json
 email_config.json
+# SMTP 发件人配置（含邮箱授权码），不上传。
+# 拉取项目后请复制 sender_config.example.json 并填入自己的 SMTP 信息
 sender_config.json
 problem_cache.json
 luogu_tags_cache.json

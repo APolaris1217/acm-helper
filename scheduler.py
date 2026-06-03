@@ -156,8 +156,8 @@ class WeeklyReportScheduler:
         except Exception as e:
             print(f"  [SCHEDULER] 定时标签补全失败: {e}")
 
-    def _refresh_data(self, platform: str, username: str, cookie: str = ""):
-        """爬取最新数据并写入数据库"""
+    def _refresh_data(self, platform: str, username: str, cookie: str = "", app_user_id: int = 1):
+        """Fetch latest data and write to database — new schema."""
         from db.database import get_db
         import json as _json
 
@@ -175,7 +175,6 @@ class WeeklyReportScheduler:
                 submit_time=r["date"], language=r["language"],
             ) for r in raw]
         elif platform == "luogu":
-            # Use the well-tested server.fetch_luogu (avoids thread issues with curl_cffi)
             import server as _sv
             from crawler.base_crawler import Submission
             raw = _sv.fetch_luogu(username, cookie)
@@ -198,26 +197,33 @@ class WeeklyReportScheduler:
 
         db = get_db()
 
-        # 确保用户存在
+        # Upsert platform_accounts (new schema)
         db.execute(
-            "INSERT OR IGNORE INTO users (platform, username, last_crawl_at, crawl_count) "
-            "VALUES (?, ?, datetime('now'), 1)",
-            (platform, username)
+            "INSERT OR IGNORE INTO platform_accounts (app_user_id, platform, username, last_crawl_at, crawl_count) "
+            "VALUES (?, ?, ?, datetime('now'), 1)",
+            (app_user_id, platform, username)
         )
         db.execute(
-            "UPDATE users SET last_crawl_at=datetime('now'), crawl_count=crawl_count+1 "
+            "UPDATE platform_accounts SET last_crawl_at=datetime('now'), crawl_count=crawl_count+1 "
             "WHERE platform=? AND username=?",
             (platform, username)
         )
-        user_row = db.execute(
-            "SELECT id FROM users WHERE platform=? AND username=?", (platform, username)
+        pa_row = db.execute(
+            "SELECT id FROM platform_accounts WHERE platform=? AND username=?", (platform, username)
         ).fetchone()
-        user_id = user_row["id"]
+        pa_id = pa_row["id"]
 
-        # 写入提交
+        # Pre-build caches
+        prob_cache = {}
+        for row in db.execute("SELECT id, platform, problem_id FROM problems").fetchall():
+            prob_cache[(row["platform"], row["problem_id"])] = row["id"]
+        tag_cache = {}
+        for row in db.execute("SELECT id, name_cn FROM tags").fetchall():
+            tag_cache[row["name_cn"]] = row["id"]
+
         db.execute("PRAGMA foreign_keys=OFF")
         for s in subs:
-            tags_json = _json.dumps(getattr(s, 'tags', s.get('tags', [])) if isinstance(s, dict) else s.tags, ensure_ascii=False)
+            # Extract attrs
             plat = s.platform if not isinstance(s, dict) else s.get('platform','')
             pid = s.problem_id if not isinstance(s, dict) else s.get('problemId','')
             title = s.title if not isinstance(s, dict) else s.get('name','')
@@ -225,31 +231,56 @@ class WeeklyReportScheduler:
             result = s.result if not isinstance(s, dict) else s.get('result','')
             stime = s.submit_time if not isinstance(s, dict) else (s.get('submit_time') or s.get('date',''))
             lang = s.language if not isinstance(s, dict) else s.get('language','')
-            url = s.url if not isinstance(s, dict) else s.get('url','')
+            s_url = s.url if not isinstance(s, dict) else s.get('url','')
+            s_tags = s.tags if not isinstance(s, dict) else s.get('tags',[])
             record_id = str(getattr(s, 'record_id', s.get('recordId', '')) if isinstance(s, dict) else getattr(s, 'record_id', '') or '')
+
+            # 1. Upsert problem
+            prob_key = (plat, pid)
+            if prob_key not in prob_cache:
+                db.execute(
+                    "INSERT OR IGNORE INTO problems (platform, problem_id, title, difficulty, url) VALUES (?,?,?,?,?)",
+                    (plat, pid, title, diff or 0, s_url or "")
+                )
+                pr = db.execute("SELECT id FROM problems WHERE platform=? AND problem_id=?", (plat, pid)).fetchone()
+                prob_cache[prob_key] = pr["id"]
+            prob_id = prob_cache[prob_key]
+
+            # 2. Upsert tags + problem_tags
+            for tag_cn in (s_tags or []):
+                if tag_cn not in tag_cache:
+                    db.execute("INSERT OR IGNORE INTO tags (name_cn) VALUES (?)", (tag_cn,))
+                    tr = db.execute("SELECT id FROM tags WHERE name_cn=?", (tag_cn,)).fetchone()
+                    if tr:
+                        tag_cache[tag_cn] = tr["id"]
+                tid = tag_cache.get(tag_cn)
+                if tid:
+                    db.execute("INSERT OR IGNORE INTO problem_tags (problem_id, tag_id) VALUES (?,?)", (prob_id, tid))
+
+            # 3. Update problem metadata
+            if diff > 0:
+                db.execute(
+                    "UPDATE problems SET difficulty=CASE WHEN difficulty=0 THEN ? ELSE difficulty END, "
+                    "title=CASE WHEN title='' THEN ? ELSE title END, url=CASE WHEN url='' THEN ? ELSE url END WHERE id=?",
+                    (diff, title, s_url or "", prob_id)
+                )
+
+            # 4. Handle record_id linking
             if record_id:
                 db.execute(
                     "UPDATE OR IGNORE submissions SET record_id=? "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "WHERE platform_account_id=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
                     "AND (record_id='' OR record_id IS NULL)",
-                    (record_id, user_id, plat, pid, stime, result, lang)
+                    (record_id, pa_id, prob_id, stime, result, lang)
                 )
+
+            # 5. Insert submission
             db.execute(
                 "INSERT OR IGNORE INTO submissions "
-                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url, record_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, plat, pid, title, diff, tags_json, result, stime, lang, url, record_id)
+                "(platform_account_id, problem_id, result, submit_time, language, code, record_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (pa_id, prob_id, result, stime, lang, "", record_id)
             )
-            # Update tags/difficulty if server has new data
-            if (diff and diff > 0) or (tags_json and tags_json != '[]'):
-                db.execute(
-                    "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
-                    "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
-                    "AND COALESCE(record_id, '')=?",
-                    (diff, diff, tags_json, tags_json,
-                     user_id, plat, pid, stime, result, lang, record_id)
-                )
         db.commit()
         db.execute("PRAGMA foreign_keys=ON")
 
@@ -393,36 +424,59 @@ class WeeklyReportScheduler:
         return submissions
 
     def _load_submissions(self, platform: str, username: str) -> list[dict]:
-        """从数据库加载用户的提交记录"""
+        """Load submissions from new schema — returns old-compatible format."""
         from db.database import get_db
         import json as _json
 
         db = get_db()
-        user_row = db.execute(
-            "SELECT id FROM users WHERE platform=? AND username=?",
+        # Use server's helper if available, otherwise query directly
+        try:
+            import server as _sv
+            return _sv._query_submissions(db, platform=platform, username=username)
+        except (ImportError, AttributeError):
+            pass
+
+        # Fallback: direct query
+        pa_row = db.execute(
+            "SELECT id FROM platform_accounts WHERE platform=? AND username=?",
             (platform, username)
         ).fetchone()
-
-        if not user_row:
+        if not pa_row:
             return []
 
-        user_id = user_row["id"]
+        # Build tag cache
+        tag_sql = """
+            SELECT p.id, GROUP_CONCAT(t.name_cn, '\x1f') as tag_names
+            FROM problems p
+            LEFT JOIN problem_tags pt ON pt.problem_id = p.id
+            LEFT JOIN tags t ON t.id = pt.tag_id
+            GROUP BY p.id
+        """
+        prob_tags = {}
+        for row in db.execute(tag_sql).fetchall():
+            prob_tags[row["id"]] = (row["tag_names"] or "").split("\x1f") if row["tag_names"] else []
+
         rows = db.execute(
-            "SELECT * FROM submissions WHERE user_id=? AND platform=?",
-            (user_id, platform)
+            "SELECT s.* FROM submissions s "
+            "WHERE s.platform_account_id=? "
+            "ORDER BY s.submit_time DESC",
+            (pa_row["id"],)
         ).fetchall()
 
         subs = []
         for r in rows:
+            prob_row = db.execute("SELECT * FROM problems WHERE id=?", (r["problem_id"],)).fetchone()
             subs.append({
-                "platform": r["platform"],
-                "problemId": r["problem_id"],
-                "name": r["title"],
-                "difficulty": r["difficulty"],
-                "tags": _json.loads(r["tags"]) if r["tags"] else [],
+                "platform": platform,
+                "problemId": prob_row["problem_id"] if prob_row else "",
+                "name": prob_row["title"] if prob_row else "",
+                "difficulty": prob_row["difficulty"] if prob_row else 0,
+                "tags": prob_tags.get(r["problem_id"], []),
                 "result": r["result"],
                 "date": (r["submit_time"] or "")[:10],
                 "language": r["language"],
+                "url": prob_row["url"] if prob_row else "",
+                "recordId": r["record_id"],
             })
         return subs
 

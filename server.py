@@ -477,86 +477,87 @@ def _scrape_nowcoder_content(problem_id):
 
 
 def _auto_tag_untagged(task_id: str = None):
-    """Auto-tag untagged problems — scrape Luogu detail pages first, AI as fallback."""
+    """Auto-tag untagged problems — scrape Luogu detail pages first, AI as fallback.
+    New schema: populates problem_tags table (not JSON tags column)."""
     import json as _j
     tm = _task_mgr
     try:
         db2 = get_db()
 
-        # Non-Luogu: only pick up truly empty tags
-        rows = db2.execute(
-            "SELECT DISTINCT problem_id, title, platform FROM submissions "
-            "WHERE platform != 'luogu' AND (tags='[]' OR tags='')"
-        ).fetchall()
+        # Find problems with no tags yet (check problem_tags table)
+        untagged = db2.execute("""
+            SELECT DISTINCT p.id, p.platform, p.problem_id, p.title
+            FROM problems p
+            LEFT JOIN problem_tags pt ON pt.problem_id = p.id
+            WHERE pt.tag_id IS NULL
+            ORDER BY p.platform, p.problem_id
+        """).fetchall()
 
-        # Luogu: pick up all problems — tags may be numeric IDs like ["1","7","24"]
-        lg_rows = db2.execute(
-            "SELECT DISTINCT problem_id, title, platform, tags FROM submissions "
-            "WHERE platform = 'luogu'"
-        ).fetchall()
-
-        seen = set()
-        all_problems = []
-        for r in rows:
-            key = f"{r['platform']}:{r['problem_id']}"
-            if key not in seen:
-                seen.add(key)
-                all_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": r["platform"]})
-
-        # Luogu: re-scrape all problems from detail pages (tags are authoritative)
-        lg_problems = []
-        for r in lg_rows:
-            key = f"luogu:{r['problem_id']}"
-            if key in seen:
-                continue
-            seen.add(key)
-            lg_problems.append({"problem_id": r["problem_id"], "title": r["title"], "platform": "luogu"})
-
-        if not lg_problems and not all_problems:
+        if not untagged:
             print("  [TAGGER] No untagged problems")
             if task_id:
                 tm.update(task_id, status="done", message="没有需要补全标签的题目", progress=1.0)
             return
 
-        ai_problems = [p for p in all_problems]
+        lg_problems = [dict(r) for r in untagged if r["platform"] == "luogu"]
+        ai_problems = [dict(r) for r in untagged if r["platform"] != "luogu"]
+
+        # Build tag lookup cache
+        tag_cache = {}
+        for row in db2.execute("SELECT id, name_cn FROM tags").fetchall():
+            tag_cache[row["name_cn"]] = row["id"]
+
+        def _link_tags(prob_id, cn_tags):
+            """Link normalized Chinese tags to a problem."""
+            count = 0
+            for tn in cn_tags:
+                if tn not in tag_cache:
+                    db2.execute("INSERT OR IGNORE INTO tags (name_cn) VALUES (?)", (tn,))
+                    tr = db2.execute("SELECT id FROM tags WHERE name_cn=?", (tn,)).fetchone()
+                    if tr:
+                        tag_cache[tn] = tr["id"]
+                tid = tag_cache.get(tn)
+                if tid:
+                    db2.execute(
+                        "INSERT OR IGNORE INTO problem_tags (problem_id, tag_id) VALUES (?,?)",
+                        (prob_id, tid)
+                    )
+                    count += 1
+            return count
+
         updated = 0
         total_phases = (1 if lg_problems else 0) + (1 if ai_problems else 0)
 
-        # Step 1: Serial scrape Luogu problem pages for tags (no threads — curl_cffi incompatible)
+        # Step 1: Scrape Luogu problem pages for tags
         if lg_problems:
             lg_total = len(lg_problems)
             phase_start = 0.05
             phase_end = 0.5 if ai_problems else 0.95
-            print(f"  [TAGGER] Scraping tags for {lg_problems} Luogu problems (serial)...")
+            print(f"  [TAGGER] Scraping tags for {lg_total} Luogu problems...")
             for i, p in enumerate(lg_problems):
                 if i % 10 == 0 and task_id:
                     tm.update(task_id, status="running",
                               message=f"洛谷标签抓取中 {i}/{lg_total}",
                               progress=phase_start + (phase_end - phase_start) * (i / lg_total))
                 if i % 50 == 0:
-                    print(f"  [TAGGER]   progress {i}/{lg_problems}")
+                    print(f"  [TAGGER]   progress {i}/{lg_total}")
                     db2.commit()
                 cn_tags = normalize_tags(_scrape_luogu_tags(p["problem_id"]))
                 if cn_tags:
-                    tags_json = _j.dumps(cn_tags, ensure_ascii=False)
-                    db2.execute(
-                        "UPDATE submissions SET tags=? WHERE platform='luogu' AND problem_id=?",
-                        (tags_json, p["problem_id"])
-                    )
-                    updated += 1
+                    updated += _link_tags(p["id"], cn_tags)
             db2.commit()
-            print(f"  [TAGGER] Luogu scrape: {updated} tagged")
+            print(f"  [TAGGER] Luogu scrape: {updated} tags linked")
             if task_id:
                 tm.update(task_id, status="running",
                           message=f"洛谷标签抓取完成，已标记 {updated} 题",
                           progress=phase_end)
 
-        # Step 2: Serial scrape problem content, then AI fallback
+        # Step 2: AI fallback for non-Luogu problems
         if ai_problems:
             ai_total = len(ai_problems)
             phase_start = 0.5 if lg_problems else 0.05
             scrape_end = phase_start + 0.3 * (1.0 - phase_start)
-            print(f"  [TAGGER] AI fallback for {ai_problems} problems (serial)...")
+            print(f"  [TAGGER] AI fallback for {ai_total} problems...")
             for i, p in enumerate(ai_problems):
                 if i % 5 == 0 and task_id:
                     tm.update(task_id, status="running",
@@ -568,8 +569,8 @@ def _auto_tag_untagged(task_id: str = None):
                 if content:
                     p["content"] = content
                 row = db2.execute(
-                    "SELECT MAX(difficulty) as d FROM submissions WHERE platform=? AND problem_id=?",
-                    (p["platform"], p["problem_id"])
+                    "SELECT MAX(difficulty) as d FROM problems WHERE id=?",
+                    (p["id"],)
                 ).fetchone()
                 if row and row["d"]:
                     p["difficulty"] = row["d"]
@@ -583,27 +584,20 @@ def _auto_tag_untagged(task_id: str = None):
             tag_map = auto_tag_batch(ai_problems)
             ai_updated = 0
             for p in ai_problems:
-                pid = p["problem_id"]
-                plat = p["platform"]
-                tags = tag_map.get(pid, [])
+                tags = tag_map.get(p["problem_id"], [])
                 if tags:
                     from tag_map import normalize_tags as _norm
                     cn_tags = _norm(tags)
-                    tags_json = _j.dumps(cn_tags, ensure_ascii=False)
-                    db2.execute(
-                        "UPDATE submissions SET tags=? WHERE platform=? AND problem_id=? AND (tags='[]' OR tags='')",
-                        (tags_json, plat, pid)
-                    )
-                    ai_updated += 1
+                    ai_updated += _link_tags(p["id"], cn_tags)
             db2.commit()
             updated += ai_updated
-            print(f"  [TAGGER] AI fallback: {ai_updated} tagged")
+            print(f"  [TAGGER] AI fallback: {ai_updated} tags linked")
             if task_id:
                 tm.update(task_id, status="running",
                           message=f"AI 标签推断完成，已标记 {ai_updated} 题",
                           progress=0.95)
 
-        print(f"  [TAGGER] Total updated: {updated}")
+        print(f"  [TAGGER] Total tags linked: {updated}")
     except Exception as e:
         import traceback
         print(f"  [TAGGER] Auto-tag failed: {e}")
@@ -659,6 +653,17 @@ def _run_report_preview_task(task_id: str, platform: str):
                     to_date=to_date,
                     submissions=all_subs,
                 )
+                # Save to weekly_reports table
+                try:
+                    db2 = get_db()
+                    db2.execute(
+                        "INSERT INTO weekly_reports (app_user_id, report_content, period_start, period_end, platforms_covered) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (1, report, from_date, to_date, ",".join(p for p, _ in entries))
+                    )
+                    db2.commit()
+                except Exception:
+                    pass
                 _report_results[task_id] = [{"platform": "all", "username": "综合", "report": report}]
             except Exception as e:
                 _report_results[task_id] = [{"platform": "all", "username": "综合", "report": "", "error": str(e)}]
@@ -719,6 +724,18 @@ def _run_report_send_task(task_id: str):
             submissions=all_subs,
         )
 
+        # Save to weekly_reports
+        try:
+            db2 = get_db()
+            db2.execute(
+                "INSERT INTO weekly_reports (app_user_id, report_content, period_start, period_end, platforms_covered) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (1, report, from_date, to_date, ",".join(p for p, _ in entries))
+            )
+            db2.commit()
+        except Exception:
+            pass
+
         # Phase 3: Send email
         tm.update(task_id, status="running",
                   message="正在发送邮件...",
@@ -759,15 +776,83 @@ def _load_bound_accounts() -> dict:
                 return {}
     return {}
 
-def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""):
-    """在后台线程中执行爬取任务"""
+
+def _query_submissions(db, app_user_id: int = 1, platform: str = "", username: str = ""):
+    """Query submissions from new schema, returning old-format-compatible dicts.
+
+    Returns list of dicts with keys: platform, problemId, name, difficulty, tags,
+    result, date, language, url, recordId, submitTime
+    """
+    import json as _j
+
+    # Build tag cache per-problem
+    tag_sql = """
+        SELECT p.id, GROUP_CONCAT(t.name_cn, '\x1f') as tag_names
+        FROM problems p
+        LEFT JOIN problem_tags pt ON pt.problem_id = p.id
+        LEFT JOIN tags t ON t.id = pt.tag_id
+        GROUP BY p.id
+    """
+    prob_tags = {}
+    for row in db.execute(tag_sql).fetchall():
+        prob_tags[row["id"]] = (row["tag_names"] or "").split("\x1f") if row["tag_names"] else []
+
+    # Build query
+    if platform and username:
+        pa_rows = db.execute(
+            "SELECT id FROM platform_accounts WHERE app_user_id=? AND platform=? AND username=?",
+            (app_user_id, platform, username)
+        ).fetchall()
+        pa_ids = [r["id"] for r in pa_rows]
+        if not pa_ids:
+            return []
+        placeholders = ",".join("?" * len(pa_ids))
+        rows = db.execute(
+            f"SELECT s.*, pa.platform, pa.username FROM submissions s "
+            f"JOIN platform_accounts pa ON pa.id = s.platform_account_id "
+            f"WHERE s.platform_account_id IN ({placeholders}) "
+            f"ORDER BY s.submit_time DESC",
+            pa_ids
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT s.*, pa.platform, pa.username FROM submissions s "
+            "JOIN platform_accounts pa ON pa.id = s.platform_account_id "
+            "WHERE pa.app_user_id=? "
+            "ORDER BY s.submit_time DESC",
+            (app_user_id,)
+        ).fetchall()
+
+    result = []
+    for r in rows:
+        prob_row = db.execute(
+            "SELECT * FROM problems WHERE id=?", (r["problem_id"],)
+        ).fetchone()
+        result.append({
+            "platform": r["platform"],
+            "problemId": prob_row["problem_id"] if prob_row else "",
+            "name": prob_row["title"] if prob_row else "",
+            "difficulty": prob_row["difficulty"] if prob_row else 0,
+            "tags": prob_tags.get(r["problem_id"], []),
+            "result": r["result"],
+            "date": (r["submit_time"] or "")[:10],
+            "submitTime": r["submit_time"],
+            "language": r["language"],
+            "url": prob_row["url"] if prob_row else "",
+            "recordId": r["record_id"],
+            "id": r["id"],
+        })
+    return result
+
+def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = "", app_user_id: int = 1):
+    """Run crawl task in background thread — new schema with problems/tags normalization."""
     tm = _task_mgr
     crawler = _CRAWLERS.get(platform)
     if not crawler:
         tm.update(task_id, status="failed", error=f"不支持的平台: {platform}")
         return
 
-    # 如果是 Luogu / NowCoder crawler，设置 cookie（解决 cookie 丢失导致只有 AC/unsolved 的问题）
+    # For Luogu / NowCoder, set cookie
     if platform in ("luogu", "nowcoder") and cookie:
         crawler.cookie = cookie
 
@@ -782,61 +867,106 @@ def _run_crawl_task(platform: str, username: str, task_id: str, cookie: str = ""
                   message=f"爬取完成: {len(all_subs)} 条提交，{len(ac_subs)} 道 AC 题目",
                   progress=1.0, status="done")
 
-        # 写入数据库
+        # Write to database with new schema
         db = get_db()
+        import json
+
+        # Upsert platform_accounts (new: replaces old users table)
         db.execute(
-            "INSERT OR IGNORE INTO users (platform, username, last_crawl_at, crawl_count) "
-            "VALUES (?, ?, datetime('now'), 1)",
-            (platform, username)
+            "INSERT OR IGNORE INTO platform_accounts (app_user_id, platform, username, last_crawl_at, crawl_count) "
+            "VALUES (?, ?, ?, datetime('now'), 1)",
+            (app_user_id, platform, username)
         )
         db.execute(
-            "UPDATE users SET last_crawl_at=datetime('now'), crawl_count=crawl_count+1 "
+            "UPDATE platform_accounts SET last_crawl_at=datetime('now'), crawl_count=crawl_count+1 "
             "WHERE platform=? AND username=?",
             (platform, username)
         )
-
-        user_row = db.execute(
-            "SELECT id FROM users WHERE platform=? AND username=?", (platform, username)
+        pa_row = db.execute(
+            "SELECT id FROM platform_accounts WHERE platform=? AND username=?", (platform, username)
         ).fetchone()
-        user_id = user_row["id"]
+        pa_id = pa_row["id"]
 
-        import json
-        # Disable FK checks during bulk insert (cross-thread connection issue in SQLite)
+        # Pre-build tag lookup cache
+        tag_cache = {}  # name_cn -> tag.id
+        for row in db.execute("SELECT id, name_cn FROM tags").fetchall():
+            tag_cache[row["name_cn"]] = row["id"]
+
+        # Pre-build problem lookup cache
+        prob_cache = {}  # (platform, problem_id) -> problems.id
+        for row in db.execute("SELECT id, platform, problem_id FROM problems").fetchall():
+            prob_cache[(row["platform"], row["problem_id"])] = row["id"]
+
         db.execute("PRAGMA foreign_keys=OFF")
         count = 0
         for s in all_subs:
-            tags_json = json.dumps(s.tags, ensure_ascii=False)
+            # 1. Upsert problem
+            prob_key = (s.platform, s.problem_id)
+            if prob_key not in prob_cache:
+                db.execute(
+                    "INSERT OR IGNORE INTO problems (platform, problem_id, title, difficulty, url) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (s.platform, s.problem_id, s.title, s.difficulty or 0, s.url or "")
+                )
+                prob_row = db.execute(
+                    "SELECT id FROM problems WHERE platform=? AND problem_id=?",
+                    (s.platform, s.problem_id)
+                ).fetchone()
+                prob_cache[prob_key] = prob_row["id"]
+            prob_id = prob_cache[prob_key]
+
+            # 2. Upsert tags + problem_tags
+            for tag_cn in (s.tags or []):
+                if tag_cn not in tag_cache:
+                    db.execute(
+                        "INSERT OR IGNORE INTO tags (name_cn) VALUES (?)", (tag_cn,)
+                    )
+                    tr = db.execute(
+                        "SELECT id FROM tags WHERE name_cn=?", (tag_cn,)
+                    ).fetchone()
+                    if tr:
+                        tag_cache[tag_cn] = tr["id"]
+                tag_id = tag_cache.get(tag_cn)
+                if tag_id:
+                    db.execute(
+                        "INSERT OR IGNORE INTO problem_tags (problem_id, tag_id) VALUES (?, ?)",
+                        (prob_id, tag_id)
+                    )
+
+            # 3. Update problem difficulty if new data has it
             diff = s.difficulty or 0
+            if diff > 0:
+                db.execute(
+                    "UPDATE problems SET difficulty=CASE WHEN difficulty=0 THEN ? ELSE difficulty END, "
+                    "title=CASE WHEN title='' THEN ? ELSE title END, "
+                    "url=CASE WHEN url='' THEN ? ELSE url END "
+                    "WHERE id=?",
+                    (diff, s.title, s.url or "", prob_id)
+                )
+
+            # 4. Handle record_id linking (Luogu)
             record_id = str(getattr(s, "record_id", "") or "")
             if record_id:
                 db.execute(
                     "UPDATE OR IGNORE submissions SET record_id=? "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
+                    "WHERE platform_account_id=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
                     "AND (record_id='' OR record_id IS NULL)",
-                    (record_id, user_id, s.platform, s.problem_id, s.submit_time, s.result, s.language)
+                    (record_id, pa_id, prob_id, s.submit_time, s.result, s.language)
                 )
+
+            # 5. Insert submission (NEW: uses FKs instead of raw strings)
             db.execute(
                 "INSERT OR IGNORE INTO submissions "
-                "(user_id, platform, problem_id, title, difficulty, tags, result, submit_time, language, url, record_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, s.platform, s.problem_id, s.title, diff,
-                 tags_json, s.result, s.submit_time,
-                 s.language, s.url, record_id)
+                "(platform_account_id, problem_id, result, submit_time, language, code, record_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (pa_id, prob_id, s.result, s.submit_time,
+                 s.language, getattr(s, "code", "") or "", record_id)
             )
-            # Update tags/difficulty if server has new data
-            if (diff and diff > 0) or (tags_json and tags_json != '[]'):
-                db.execute(
-                    "UPDATE submissions SET difficulty=CASE WHEN difficulty=0 AND ? > 0 THEN ? ELSE difficulty END, "
-                    "tags=CASE WHEN (tags='[]' OR tags='') AND ? != '[]' THEN ? ELSE tags END "
-                    "WHERE user_id=? AND platform=? AND problem_id=? AND submit_time=? AND result=? AND language=? "
-                    "AND COALESCE(record_id, '')=?",
-                    (diff, diff, tags_json, tags_json,
-                     user_id, s.platform, s.problem_id, s.submit_time, s.result, s.language, record_id)
-                )
             count += 1
+
         db.commit()
         db.execute("PRAGMA foreign_keys=ON")
-        print(f"  [TASK {task_id}] 已写入 {count} 条记录 (user_id={user_id})")
+        print(f"  [TASK {task_id}] 已写入 {count} 条记录 (pa_id={pa_id})")
 
     except Exception as e:
         import traceback
@@ -1473,40 +1603,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 username = parts[5]
 
                 db = get_db()
-                user_row = db.execute(
-                    "SELECT id FROM users WHERE platform=? AND username=?",
-                    (platform, username)
-                ).fetchone()
-
-                if not user_row:
-                    self._send_error(f"未找到用户: {platform}/{username}，请先爬取数据", 404)
-                    return
-
-                user_id = user_row["id"]
-                rows = db.execute(
-                    "SELECT * FROM submissions WHERE user_id=? AND platform=?",
-                    (user_id, platform)
-                ).fetchall()
-
-                import json as _json
-                subs = []
-                for r in rows:
-                    subs.append({
-                        "platform": r["platform"],
-                        "problemId": r["problem_id"],
-                        "name": r["title"],
-                        "difficulty": r["difficulty"],
-                        "tags": _json.loads(r["tags"]) if r["tags"] else [],
-                        "result": r["result"],
-                        "date": (r["submit_time"] or "")[:10],
-                        "language": r["language"],
-                    })
+                subs = _query_submissions(db, platform=platform, username=username)
 
                 if not subs:
                     self._send_json({
                         "platform": platform,
                         "username": username,
-                        "error": "无提交数据",
+                        "error": "无提交数据，请先爬取数据",
                         "summary": {},
                         "metrics": {},
                         "weaknesses": [],
@@ -1533,35 +1636,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
 
                 db = get_db()
-                import json as _j
                 all_subs = []
-
                 for plat, acc in accounts.items():
                     uname = acc.get("username", "")
                     if not uname:
                         continue
-                    user_row = db.execute(
-                        "SELECT id FROM users WHERE platform=? AND username=?",
-                        (plat, uname)
-                    ).fetchone()
-                    if not user_row:
-                        continue
-                    rows = db.execute(
-                        "SELECT * FROM submissions WHERE user_id=? AND platform=?",
-                        (user_row["id"], plat)
-                    ).fetchall()
-                    for r in rows:
-                        all_subs.append({
-                            "platform": r["platform"],
-                            "problemId": r["problem_id"],
-                            "name": r["title"],
-                            "difficulty": r["difficulty"],
-                            "tags": _j.loads(r["tags"]) if r["tags"] else [],
-                            "result": r["result"],
-                            "date": (r["submit_time"] or "")[:10],
-                            "submitTime": r["submit_time"],
-                            "language": r["language"],
-                        })
+                    subs = _query_submissions(db, platform=plat, username=uname)
+                    if subs:
+                        all_subs.extend(subs)
 
                 if not all_subs:
                     self._send_json({"weaknesses": [], "message": "无提交数据"})
@@ -1571,7 +1653,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 points = compute_knowledge_points(all_subs)
                 top5 = calculate_weakness_top5(points)
 
-                # Map tag IDs to Chinese names
                 for r in top5:
                     r.name = TAG_CN.get(r.id, r.id)
 
@@ -1603,36 +1684,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 username = parts[5]
                 refresh = params.get("refresh", "false") == "true"
 
-                # 从数据库加载用户提交
+                # Load user submissions from new schema
                 db = get_db()
-                user_row = db.execute(
-                    "SELECT id FROM users WHERE platform=? AND username=?",
-                    (platform, username)
-                ).fetchone()
-
-                if not user_row:
-                    self._send_error(f"未找到用户: {platform}/{username}，请先爬取数据", 404)
-                    return
-
-                user_id = user_row["id"]
-                rows = db.execute(
-                    "SELECT * FROM submissions WHERE user_id=? AND platform=?",
-                    (user_id, platform)
-                ).fetchall()
-
-                import json as _json
-                subs = []
-                for r in rows:
-                    subs.append({
-                        "platform": r["platform"],
-                        "problemId": r["problem_id"],
-                        "name": r["title"],
-                        "difficulty": r["difficulty"],
-                        "tags": _json.loads(r["tags"]) if r["tags"] else [],
-                        "result": r["result"],
-                        "date": (r["submit_time"] or "")[:10],
-                        "language": r["language"],
-                    })
+                subs = _query_submissions(db, platform=platform, username=username)
 
                 # 运行分析
                 if subs:
@@ -1930,7 +1984,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # ---- Get last sync time ----
             elif path == "/api/v2/last-sync" and self.command == "GET":
                 db = get_db()
-                row = db.execute("SELECT MAX(last_crawl_at) as last_sync FROM users").fetchone()
+                row = db.execute("SELECT MAX(last_crawl_at) as last_sync FROM platform_accounts").fetchone()
                 last_sync = row["last_sync"] if row else None
                 self._send_json({"last_sync": last_sync})
 
@@ -1940,39 +1994,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 username = params.get("username", "").strip()
                 db = get_db()
                 if platform and username:
-                    user_row = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (platform, username)).fetchone()
-                    if not user_row:
-                        self._send_json([])
-                        return
-                    rows = db.execute("SELECT * FROM submissions WHERE user_id=?", (user_row["id"],)).fetchall()
+                    result = _query_submissions(db, platform=platform, username=username)
                 else:
-                    # Return all bound accounts' submissions
-                    accounts = _load_bound_accounts()
-                    rows = []
-                    for plat, acc in accounts.items():
-                        uname = acc.get("username", "")
-                        if not uname:
-                            continue
-                        ur = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (plat, uname)).fetchone()
-                        if ur:
-                            batch = db.execute("SELECT * FROM submissions WHERE user_id=?", (ur["id"],)).fetchall()
-                            rows.extend(batch)
-                import json as _j
-                result = []
-                for r in rows:
-                    result.append({
-                        "platform": r["platform"],
-                        "problemId": r["problem_id"],
-                        "name": r["title"],
-                        "difficulty": r["difficulty"],
-                        "tags": _j.loads(r["tags"]) if r["tags"] else [],
-                        "result": r["result"],
-                        "date": (r["submit_time"] or "")[:10],
-                        "submitTime": r["submit_time"],
-                        "language": r["language"],
-                        "url": r["url"],
-                        "recordId": r["record_id"],
-                    })
+                    result = _query_submissions(db)
                 self._send_json(result)
 
             # ---- Sync all bound accounts ----
@@ -2026,20 +2050,150 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 tgt_user = body.get("username", "").strip()
                 db = get_db()
                 if tgt_plat and tgt_user:
-                    ur = db.execute("SELECT id FROM users WHERE platform=? AND username=?", (tgt_plat, tgt_user)).fetchone()
-                    if ur:
-                        db.execute("DELETE FROM submissions WHERE user_id=?", (ur["id"],))
-                        db.execute("DELETE FROM users WHERE id=?", (ur["id"],))
+                    pa = db.execute(
+                        "SELECT id FROM platform_accounts WHERE platform=? AND username=?",
+                        (tgt_plat, tgt_user)
+                    ).fetchone()
+                    if pa:
+                        db.execute("DELETE FROM submissions WHERE platform_account_id=?", (pa["id"],))
+                        db.execute("DELETE FROM platform_accounts WHERE id=?", (pa["id"],))
                         db.commit()
                         self._send_json({"ok": True, "message": f"已清除 {tgt_plat}/{tgt_user}"})
                     else:
                         self._send_error("未找到", 404)
                 else:
                     db.execute("DELETE FROM submissions")
-                    db.execute("DELETE FROM users")
+                    db.execute("DELETE FROM problem_tags")
+                    db.execute("DELETE FROM platform_accounts")
                     db.execute("DELETE FROM analysis_snapshots")
+                    db.execute("DELETE FROM weekly_reports")
                     db.commit()
                     self._send_json({"ok": True, "message": "已清除全部数据"})
+
+            # ================================================================
+            # V3 API endpoints (new schema-aware)
+            # ================================================================
+
+            # ---- List tags ----
+            elif path == "/api/v3/tags" and self.command == "GET":
+                db = get_db()
+                rows = db.execute(
+                    "SELECT t.*, COUNT(pt.problem_id) as problem_count "
+                    "FROM tags t LEFT JOIN problem_tags pt ON pt.tag_id = t.id "
+                    "GROUP BY t.id ORDER BY problem_count DESC"
+                ).fetchall()
+                self._send_json([
+                    {"id": r["id"], "name_en": r["name_en"], "name_cn": r["name_cn"],
+                     "category": r["category"], "problem_count": r["problem_count"]}
+                    for r in rows
+                ])
+
+            # ---- List problems (with tag filters) ----
+            elif path == "/api/v3/problems" and self.command == "GET":
+                db = get_db()
+                tag_id = params.get("tag_id", "").strip()
+                platform = params.get("platform", "").strip()
+                if tag_id:
+                    rows = db.execute("""
+                        SELECT p.*, GROUP_CONCAT(t.name_cn, ',') as tag_names
+                        FROM problems p
+                        JOIN problem_tags pt ON pt.problem_id = p.id
+                        JOIN tags t ON t.id = pt.tag_id
+                        WHERE pt.tag_id = ?
+                        """ + ("AND p.platform = ?" if platform else "") + """
+                        GROUP BY p.id ORDER BY p.difficulty DESC
+                    """, (int(tag_id), platform) if platform else (int(tag_id),)).fetchall()
+                else:
+                    rows = db.execute("""
+                        SELECT p.*, GROUP_CONCAT(t.name_cn, ',') as tag_names
+                        FROM problems p
+                        LEFT JOIN problem_tags pt ON pt.problem_id = p.id
+                        LEFT JOIN tags t ON t.id = pt.tag_id
+                        """ + ("WHERE p.platform = ?" if platform else "") + """
+                        GROUP BY p.id ORDER BY p.difficulty DESC
+                    """, (platform,) if platform else ()).fetchall()
+                self._send_json([
+                    {"id": r["id"], "platform": r["platform"], "problem_id": r["problem_id"],
+                     "title": r["title"], "difficulty": r["difficulty"], "url": r["url"],
+                     "tags": (r["tag_names"] or "").split(",") if r["tag_names"] else []}
+                    for r in rows
+                ])
+
+            # ---- User stats from view ----
+            elif path.startswith("/api/v3/stats/user/") and self.command == "GET":
+                parts = path.split("/")
+                app_user_id = int(parts[-1]) if len(parts) >= 6 and parts[-1].isdigit() else 1
+                db = get_db()
+                rows = db.execute(
+                    "SELECT * FROM v_user_submission_stats WHERE app_user_id=? ORDER BY platform",
+                    (app_user_id,)
+                ).fetchall()
+                self._send_json([dict(r) for r in rows])
+
+            # ---- Weakness stats from view ----
+            elif path.startswith("/api/v3/stats/weakness/") and self.command == "GET":
+                parts = path.split("/")
+                app_user_id = int(parts[-1]) if len(parts) >= 6 and parts[-1].isdigit() else 1
+                db = get_db()
+                rows = db.execute(
+                    "SELECT * FROM v_tag_weakness_ranking WHERE app_user_id=? ORDER BY ac_rate ASC",
+                    (app_user_id,)
+                ).fetchall()
+                self._send_json([dict(r) for r in rows])
+
+            # ---- Daily activity from view ----
+            elif path.startswith("/api/v3/stats/activity/") and self.command == "GET":
+                parts = path.split("/")
+                app_user_id = int(parts[-1]) if len(parts) >= 6 and parts[-1].isdigit() else 1
+                db = get_db()
+                rows = db.execute(
+                    "SELECT * FROM v_daily_activity WHERE app_user_id=? ORDER BY submit_date DESC",
+                    (app_user_id,)
+                ).fetchall()
+                self._send_json([dict(r) for r in rows])
+
+            # ---- List weekly reports ----
+            elif path == "/api/v3/reports" and self.command == "GET":
+                db = get_db()
+                app_user_id = params.get("app_user_id", "1").strip()
+                rows = db.execute(
+                    "SELECT id, period_start, period_end, platforms_covered, generated_at "
+                    "FROM weekly_reports WHERE app_user_id=? ORDER BY generated_at DESC LIMIT 50",
+                    (int(app_user_id),)
+                ).fetchall()
+                self._send_json([dict(r) for r in rows])
+
+            # ---- Get single report ----
+            elif path.startswith("/api/v3/reports/") and self.command == "GET":
+                parts = path.split("/")
+                if len(parts) >= 5 and parts[-1].isdigit():
+                    report_id = int(parts[-1])
+                    db = get_db()
+                    row = db.execute(
+                        "SELECT * FROM weekly_reports WHERE id=?", (report_id,)
+                    ).fetchone()
+                    if row:
+                        self._send_json(dict(row))
+                    else:
+                        self._send_error("Report not found", 404)
+                else:
+                    self._send_error("Invalid report id", 400)
+
+            # ---- List users (app_users) ----
+            elif path == "/api/v3/users" and self.command == "GET":
+                db = get_db()
+                rows = db.execute("SELECT * FROM app_users ORDER BY id").fetchall()
+                self._send_json([dict(r) for r in rows])
+
+            # ---- Get platform accounts for user ----
+            elif path.startswith("/api/v3/accounts") and self.command == "GET":
+                db = get_db()
+                app_user_id = params.get("app_user_id", "1").strip()
+                rows = db.execute(
+                    "SELECT * FROM platform_accounts WHERE app_user_id=? ORDER BY platform",
+                    (int(app_user_id),)
+                ).fetchall()
+                self._send_json([dict(r) for r in rows])
 
             else:
                 self._send_error("Not found", 404)

@@ -1,6 +1,7 @@
 {
+  "_instructions": "复制本文件为 sender_config.json，填入你的 QQ 邮箱和授权码。授权码获取：QQ邮箱 → 设置 → 账户 → POP3/SMTP 服务 → 生成授权码。",
   "smtp_host": "smtp.qq.com",
   "smtp_port": 587,
-  "sender_email": "your-email@qq.com",
-  "sender_password": "your-auth-code"
+  "sender_email": "你的QQ号@qq.com",
+  "sender_password": "QQ邮箱授权码（不是登录密码）"
 }
