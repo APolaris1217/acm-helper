@@ -26,8 +26,23 @@ echo "  ✓ $($PY --version)"
 
 # 2. 安装依赖
 echo "[2/4] 安装依赖..."
-$PY -m pip install --quiet requests beautifulsoup4 curl_cffi markdown
-echo "  ✓ 依赖安装完成"
+
+# 必装依赖
+$PY -m pip install --quiet requests beautifulsoup4 markdown
+if [ $? -ne 0 ]; then
+    echo "  ✗ 基础依赖安装失败，请检查网络"
+    exit 1
+fi
+echo "  ✓ 基础依赖安装完成"
+
+# 可选依赖（curl_cffi 用于 AtCoder/Luogu Cloudflare 绕过）
+echo "  ● 尝试安装可选依赖 curl_cffi..."
+$PY -m pip install --quiet curl_cffi 2>/dev/null
+if [ $? -eq 0 ]; then
+    echo "  ✓ curl_cffi 安装完成"
+else
+    echo "  ! curl_cffi 安装失败（可选，不影响基础功能）"
+fi
 
 # 3. 复制配置文件
 echo "[3/4] 检查配置文件..."
