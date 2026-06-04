@@ -17,6 +17,7 @@
 - [薄弱评分规则](#薄弱评分规则)
 - [常见问题](#常见问题)
 - [项目结构](#项目结构)
+- [参考项目](#参考项目)
 
 ---
 
@@ -297,3 +298,12 @@ taskkill /F /IM python.exe
 ├── sql/                   # 数据库 SQL 脚本（schema / seed / triggers / views）
 └── *.example.json         # 配置文件模板
 ```
+
+---
+
+## 参考项目
+
+本项目参考了以下两个优秀项目，在此致谢：
+
+- [cockroach0401/acm-helper](https://github.com/cockroach0401/acm-helper) — 原始 ACM Helper 项目，提供了前端界面框架与多平台抓取的基础架构
+- [Liu233w/acm-statistics](https://github.com/Liu233w/acm-statistics) — ACM 竞赛统计数据可视化项目，为数据分析与图表展示提供了参考
