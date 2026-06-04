@@ -1,4 +1,4 @@
-﻿# setup.ps1 — ACM Helper 一键启动脚本 (Windows)
+﻿﻿# setup.ps1 — ACM Helper 一键启动脚本 (Windows)
 # 用法: powershell -ExecutionPolicy Bypass -File setup.ps1
 
 Write-Host "========================================" -ForegroundColor Cyan
@@ -9,24 +9,58 @@ Write-Host ""
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-# 1. 检查 Python
-Write-Host "[1/4] 检查 Python..." -ForegroundColor Yellow
+# 1. 查找可用的 Python（优先官方安装版，排除 msys64 等无 pip 的精简版）
+Write-Host "[1/4] 查找可用的 Python..." -ForegroundColor Yellow
+
+$PythonExe = $null
+$PythonVer = $null
+
+# 策略1: py launcher（Windows 官方安装时自带，自动选最新版）
 try {
-    $pyVersion = python --version 2>&1
-    Write-Host "  ✓ $pyVersion" -ForegroundColor Green
-} catch {
-    Write-Host "  ✗ 未找到 Python，请先安装 Python 3.10+: https://www.python.org/downloads/" -ForegroundColor Red
+    $ver = py -3 --version 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $PythonExe = "py"
+        $PythonVer = $ver.Trim()
+    }
+} catch {}
+
+# 策略2: 遍历 PATH 中所有 python.exe，找第一个有 pip 的（跳过 msys64/mingw/cygwin）
+if (-not $PythonExe) {
+    $allPythons = @(Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
+    $allPythons += @(Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
+    $allPythons = $allPythons | Where-Object { $_ } | Sort-Object -Unique
+
+    foreach ($pyPath in $allPythons) {
+        # 跳过 msys64/mingw/cygwin/WindowsApps（通常无 pip 或功能受限）
+        if ($pyPath -match 'msys|mingw|cygwin|WindowsApps') {
+            continue
+        }
+        $result = & $pyPath -c "import pip" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $PythonExe = $pyPath
+            $out = & $pyPath --version 2>&1
+            $PythonVer = $out.Trim()
+            break
+        }
+    }
+}
+
+if (-not $PythonExe) {
+    Write-Host "  ✗ 未找到可用的 Python（需 Python 3.10+ 且包含 pip）" -ForegroundColor Red
+    Write-Host "  安装地址: https://www.python.org/downloads/" -ForegroundColor Yellow
     pause
     exit 1
 }
+
+Write-Host "  ✓ $PythonVer ($PythonExe)" -ForegroundColor Green
 
 # 2. 安装依赖
 Write-Host "[2/4] 安装依赖..." -ForegroundColor Yellow
 
 # 必装依赖
-python -m pip install --quiet requests beautifulsoup4 markdown
+& $PythonExe -m pip install --quiet requests beautifulsoup4 markdown
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ✗ 基础依赖安装失败，请检查网络或 Python 环境" -ForegroundColor Red
+    Write-Host "  ✗ 基础依赖安装失败，请检查网络" -ForegroundColor Red
     pause
     exit 1
 }
@@ -35,7 +69,7 @@ Write-Host "  ✓ 基础依赖安装完成" -ForegroundColor Green
 # 可选依赖（curl_cffi 用于 AtCoder/Luogu Cloudflare 绕过，Windows 编译可能失败）
 Write-Host "  ● 尝试安装可选依赖 curl_cffi..." -ForegroundColor Gray
 try {
-    python -m pip install --quiet curl_cffi 2>&1 | Out-Null
+    & $PythonExe -m pip install --quiet curl_cffi 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  ✓ curl_cffi 安装完成" -ForegroundColor Green
     } else {
@@ -100,7 +134,7 @@ if ($startNow -ne "n") {
     Write-Host "  启动服务器 http://localhost:8765" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     $env:NO_PROXY = "*"
-    python server.py
+    & $PythonExe server.py
 } else {
     Write-Host ""
     Write-Host "配置好上述文件后，运行以下命令启动：" -ForegroundColor Yellow
