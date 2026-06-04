@@ -11,11 +11,22 @@ cd acm-helper
 
 ### 一键启动（推荐）
 
-```powershell
-# Windows:
-powershell -ExecutionPolicy Bypass -File setup.ps1
+**Windows** — 在 PowerShell 终端中运行（不要在前面加 `powershell`）：
 
-# Linux/Mac:
+```powershell
+# 如果提示"无法加载...因为在此系统上禁止运行脚本"，先执行：
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# 然后运行脚本：
+.\setup.ps1
+```
+
+> **注意**：必须在 PowerShell 中运行，不要在 CMD 中运行。
+> 如果在 CMD 中，请先用 `powershell` 命令进入 PowerShell 再执行上述命令。
+
+**Linux/Mac：**
+
+```bash
 bash setup.sh
 ```
 
