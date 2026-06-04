@@ -1,4 +1,4 @@
-# setup.ps1 — ACM Helper 一键启动脚本 (Windows)
+﻿# setup.ps1 — ACM Helper 一键启动脚本 (Windows)
 # 用法: powershell -ExecutionPolicy Bypass -File setup.ps1
 
 Write-Host "========================================" -ForegroundColor Cyan
