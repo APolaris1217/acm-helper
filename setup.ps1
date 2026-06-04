@@ -22,8 +22,28 @@ try {
 
 # 2. 安装依赖
 Write-Host "[2/4] 安装依赖..." -ForegroundColor Yellow
-pip install requests beautifulsoup4 curl_cffi markdown 2>&1 | Out-Null
-Write-Host "  ✓ 依赖安装完成" -ForegroundColor Green
+
+# 必装依赖
+python -m pip install --quiet requests beautifulsoup4 markdown
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ✗ 基础依赖安装失败，请检查网络或 Python 环境" -ForegroundColor Red
+    pause
+    exit 1
+}
+Write-Host "  ✓ 基础依赖安装完成" -ForegroundColor Green
+
+# 可选依赖（curl_cffi 用于 AtCoder/Luogu Cloudflare 绕过，Windows 编译可能失败）
+Write-Host "  ● 尝试安装可选依赖 curl_cffi..." -ForegroundColor Gray
+try {
+    python -m pip install --quiet curl_cffi 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  ✓ curl_cffi 安装完成" -ForegroundColor Green
+    } else {
+        throw "pip 返回非零"
+    }
+} catch {
+    Write-Host "  ! curl_cffi 安装失败（可选，不影响基础功能）" -ForegroundColor DarkYellow
+}
 
 # 3. 复制配置文件
 Write-Host "[3/4] 检查配置文件..." -ForegroundColor Yellow
